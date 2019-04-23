@@ -117,7 +117,7 @@ class Board:
             if verb == "JUMP":
                 mid = ((orig[0] + dest[0]) // 2, (orig[1] + dest[1]) // 2)
                 ic = by_hex[mid]
-                if ic != color:
+                if ic is not None and ic != color:
                     by_player[ic].remove(mid)
                     by_player[color].add(mid)
                     by_hex[mid] = color
@@ -145,8 +145,12 @@ class Board:
         # Check jump actions
         for p in pieces:
             for d in DIRECTIONS:
+                move = (p[0] + d[0], p[1] + d[1])
                 jump = (p[0] + 2 * d[0], p[1] + 2 * d[1])
-                if jump in BOARD_SET and self.__by_hex[jump] is None:
+                if move in BOARD_SET and \
+                        self.__by_hex[move] is not None and \
+                        jump in BOARD_SET and \
+                        self.__by_hex[jump] is None:
                     has_action = True
                     yield ("JUMP", (p, jump))
 

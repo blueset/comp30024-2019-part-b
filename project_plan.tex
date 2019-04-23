@@ -3,11 +3,14 @@
 \usepackage{amsmath}
 \usepackage{array}
 \usepackage{amssymb}
+\usepackage{tabularx}
+\usepackage{float}
 \usepackage[shortlabels]{enumitem}
 \usepackage[margin=0.5in]{geometry}
 
 \setlength{\parindent}{0em}
 \setlength{\parskip}{0.75em}
+\newcommand{\dy}[1]{\hfill \textit{\large #1}}
 
 \begin{document}
 \begin{center}
@@ -17,12 +20,59 @@
 \textbf{\Large Project B Plan}
 
 \vspace{0.5em}
-{\small Jin Han (843345)}
+{\small Jin Han (843345); Mingda Dong (849313)}
 \end{center}
 
 \section*{Approach}
-\section*{Workload share}
-\section*{Communication channels and frequencies}
-\section*{Important deadlines}
 
+\begin{itemize}
+    \item Utilise Temporal Difference Learning (TDL) to learn a set of weight for
+        the evaluation function.
+        \begin{itemize}
+            \item Produce an error function and a list of attributes for GDL.
+        \end{itemize}
+    \item Utilize $n$-player Adversarial Search
+        to predict steps for the player
+    \item Research on additional strategies online to improve the algorithm.
+\end{itemize}
+
+\section*{Workload share}
+
+\begin{itemize}
+    \item Jin
+    \begin{itemize}
+        \item Implement search algorithms of the player. ($n$-player Adversarial; etc.)
+    \end{itemize}
+
+    \item Mingda
+    \begin{itemize}
+        \item Produce error function, attribute list
+        \item Use TDL to produce evaluation function
+    \end{itemize}
+
+    \item Together
+    \begin{itemize}
+        \item Research on additional strategies online to improve the algorithm.
+    \end{itemize}
+
+\end{itemize}
+
+\section*{Communication channels and frequencies}
+\begin{description}
+    \item [Communication channel] Meet-up; Telegram;
+    \item [Time] Every Saturday and Sunday 14:00 to 17:00.
+\end{description}
+\section*{Important deadlines}
+\begin{tabularx}{\textwidth}{| l | X | X | X | X | X | X | X |}
+    \hline
+    W & \textsc{Sunday} & \textsc{Monday} & \textsc{Tuesday} & \textsc{Wednesday} & \textsc{Thursday} & \textsc{Friday} & \textsc{Saturday} \\
+    \hline \hline 
+    7 & \dy{14} & \dy{15} & \dy{16} \newline Jin: VJL Role Play & \dy{17} & \dy{18} & \dy{19} & \dy{20} \newline Meet-up \\ \hline
+    X & \dy{21} \newline Meet-up & \dy{22} \newline MD: Blocked & \dy{23} \newline MD: Blocked & \dy{24} \newline MD: Blocked & \dy{25} \newline MD: Blocked & \dy{26} \newline MD: Blocked  & \dy{27} \newline Meet-up \\ \hline
+    8 & \dy{28} \newline Meet-up & \dy{29} \newline Jin: VJL Essay 1 & \dy{30} & May \dy{1} & \dy{2} & \dy{3} \newline MD: Logic & \dy{4} \newline Meet-up \\ \hline
+    9 & \dy{5} \newline Meet-up & \dy{6} & \dy{7} & \dy{8} & \dy{9} & \dy{10} & \dy{11} \newline Meet-up \\ \hline
+    10 & \dy{12} \newline Meet-up & \dy{13} \newline Jin: VJL Analysis & \dy{14} & \dy{15} & \dy{16} & \dy{17} \newline ML Project 2 & \dy{18} \newline Meet-up \\ \hline
+    11 & \dy{19} \newline Meet-up & \dy{20} \newline AI: Project 2 & & & & & \\
+    \hline
+\end{tabularx}
 \end{document}

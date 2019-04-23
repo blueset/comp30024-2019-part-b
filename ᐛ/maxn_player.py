@@ -5,7 +5,7 @@ from typing import Tuple, Dict, Optional
 from .typing import Action, Color
 from .board import Board, DESTINATIONS, DIRECTIONS, BOARD_SET
 
-CUT_OFF_DEPTH = 12
+CUT_OFF_DEPTH = 3
 """Cut of depth for maxⁿ search"""
 
 EXIT_PIECES_TO_WIN = 4
@@ -62,7 +62,7 @@ class MaxⁿPlayer:
 
             # Sum of average (manhattan) distance to destinations
             dist = sum(
-                average(cityblock(p, d) for d in DESTINATIONS[player])
+                average([cityblock(p, d) for d in DESTINATIONS[player]])
                 for p in pieces
             )
 
@@ -169,14 +169,14 @@ class MaxⁿPlayer:
         best_action = None
         for mv in board.possible_actions(player):
             n_board = board.move(player, mv)
-            if depth == CUT_OFF_DEPTH:
+            if depth >= CUT_OFF_DEPTH:
                 score = self.Score.get(n_board)
             else:
                 next_player = NEXT_PLAYER[player]
-                score, _ = self.maxⁿ_search(n_board, next_player, depth + 1)
+                _, score = self.maxⁿ_search(n_board, next_player, depth + 1)
             if getattr(score, player) > best_score:
                 best_score = getattr(score, player)
-                best_score_set = getattr(score, player)
+                best_score_set = score
                 best_action = mv
             if best_score == float('inf'):
                 # Immediate pruning: Stop searching when the
