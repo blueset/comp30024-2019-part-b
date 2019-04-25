@@ -35,6 +35,10 @@ class MaxⁿPlayer:
         _memory: Dict[Board, 'MaxⁿPlayer.Score'] = dict()
         """Known board configurations and scores"""
 
+        MAX_TOTAL_SCORE = float('inf')
+        """Maximum total evaluation score of 3 players."""
+        # TODO: Fill this with actual value
+
         @classmethod
         def get(cls, board: Board):
             """
@@ -172,7 +176,9 @@ class MaxⁿPlayer:
 
     def maxⁿ_search(self, board: Board,
                     player: Color,
-                    depth: int) -> Tuple[Action, Score]:
+                    depth: int,
+                    prev_best: float = float('-inf')) -> Tuple[Action, Score]:
+        """Search for the best move recursively using maxⁿ algorithm."""
         # Use evaluation function
         best_score = float('-inf')
         best_score_set = None
@@ -186,11 +192,17 @@ class MaxⁿPlayer:
                 score = self.Score.get(n_board)
             else:
                 next_player = NEXT_PLAYER[player]
-                _, score = self.maxⁿ_search(n_board, next_player, depth + 1)
+                _, score = self.maxⁿ_search(n_board, next_player, depth + 1, best_score)
             if getattr(score, player) > best_score:
                 best_score = getattr(score, player)
                 best_score_set = score
                 best_action = mv
+            # TODO: Uncomment this when MAX_TOTAL_SCORE is decided
+            # if self.Score.MAX_TOTAL_SCORE - getattr(score, player) < prev_best:
+            #     # Shallow pruning: Stop searching when this branch
+            #     # yields a smaller value than what is seen in a
+            #     # previous branch.
+            #     break
             if best_score == float('inf'):
                 # Immediate pruning: Stop searching when the
                 # maximum possible value is found -- the player
