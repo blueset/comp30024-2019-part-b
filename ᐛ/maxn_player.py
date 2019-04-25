@@ -1,4 +1,3 @@
-from numpy import average
 from scipy.spatial.distance import cityblock
 from typing import Tuple, Dict, Optional
 
@@ -24,7 +23,7 @@ class MaxⁿPlayer:
     Implementation of maxⁿ algorithm as a player.
     """
 
-    __version__ = "1"
+    __version__ = "2"
 
     class Score:
         """Recording the score on a certain node, with lazy evaluation."""
@@ -55,15 +54,18 @@ class MaxⁿPlayer:
                 return float('inf')
 
             pieces = self.board.get_pieces(player)
+            n_pieces_needed = EXIT_PIECES_TO_WIN - self.board.get_exited_pieces(player)
 
             if len(pieces) == 0:
                 # No action is possible due to lack of pieces
                 return 0
 
-            # Sum of average (manhattan) distance to destinations
-            dist = sum(
-                average([cityblock(p, d) for d in DESTINATIONS[player]])
-                for p in pieces
+            # Sum of min (manhattan) distance to destinations
+            dist = 14 * EXIT_PIECES_TO_WIN - sum(
+                sorted(
+                    min([cityblock(p, d) for d in DESTINATIONS[player]])
+                    for p in pieces
+                )[:n_pieces_needed]
             )
 
             # Number of jump actions possible
@@ -79,17 +81,17 @@ class MaxⁿPlayer:
                     pos = (p[0] + d[0], p[1] + d[1])
                     neg = (p[0] - d[0], p[1] - d[1])
                     if pos in BOARD_SET and neg in BOARD_SET and \
-                        self.board.get_player(pos) != player and \
-                        self.board.get_player(neg) is None:
+                            self.board.get_player(pos) != player and \
+                            self.board.get_player(neg) is None:
                         conv += 1
 
             # Factor: Favor the case when
             # (number of pieces need to exit to win) is equal to or more than
             # (number of available pieces).
-            factor = len(pieces) / (EXIT_PIECES_TO_WIN - self.board.get_exited_pieces(player))
+            factor = len(pieces) / n_pieces_needed
 
             # TODO: Train this weights (currently arbitrary)
-            return factor * (3 * dist + jumps - conv)
+            return factor * (4 * dist + jumps - conv)
 
         @property
         def red(self) -> float:
