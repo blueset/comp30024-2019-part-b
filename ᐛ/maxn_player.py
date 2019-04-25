@@ -1,11 +1,12 @@
-from scipy.spatial.distance import cityblock
 from typing import Tuple, Dict, Optional
+from collections import Counter
 
 from .typing import Action, Color
-from .board import Board, DESTINATIONS, DIRECTIONS, BOARD_SET
+from .board import Board, DESTINATIONS, DIRECTIONS, BOARD_DICT
+from .utilities import manhattan_distance
 
 CUT_OFF_DEPTH = 3
-"""Cut of depth for maxⁿ search"""
+"""Cut of depth for maxⁿ search."""
 
 EXIT_PIECES_TO_WIN = 4
 """Number of pieces to 'exit' to win a game."""
@@ -15,7 +16,10 @@ NEXT_PLAYER = {
     "green": "blue",
     "blue": "red"
 }
-"""The mapping of consecutive player"""
+"""The mapping of consecutive player."""
+
+MAX_STATE_REPETITION = 2
+"""Maximum number of repetitions of a board configuration."""
 
 
 class MaxⁿPlayer:
@@ -23,7 +27,7 @@ class MaxⁿPlayer:
     Implementation of maxⁿ algorithm as a player.
     """
 
-    __version__ = "2"
+    __version__ = "3"
 
     class Score:
         """Recording the score on a certain node, with lazy evaluation."""
@@ -63,7 +67,7 @@ class MaxⁿPlayer:
             # Sum of min (manhattan) distance to destinations
             dist = 14 * EXIT_PIECES_TO_WIN - sum(
                 sorted(
-                    min([cityblock(p, d) for d in DESTINATIONS[player]])
+                    min([manhattan_distance(p, d) for d in DESTINATIONS[player]])
                     for p in pieces
                 )[:n_pieces_needed]
             )
@@ -80,7 +84,7 @@ class MaxⁿPlayer:
                 for d in DIRECTIONS:
                     pos = (p[0] + d[0], p[1] + d[1])
                     neg = (p[0] - d[0], p[1] - d[1])
-                    if pos in BOARD_SET and neg in BOARD_SET and \
+                    if pos in BOARD_DICT and neg in BOARD_DICT and \
                             self.board.get_player(pos) != player and \
                             self.board.get_player(neg) is None:
                         conv += 1
@@ -91,6 +95,7 @@ class MaxⁿPlayer:
             factor = len(pieces) / n_pieces_needed
 
             # TODO: Train this weights (currently arbitrary)
+            # TODO: Make the attributes zero-sum to apply shallow pruning
             return factor * (4 * dist + jumps - conv)
 
         @property
@@ -127,6 +132,8 @@ class MaxⁿPlayer:
         """
         self.color = color
         self.board = Board()
+        self.counter = Counter()
+        self.counter[self.board] = 1
 
     def action(self) -> Action:
         """
@@ -161,6 +168,7 @@ class MaxⁿPlayer:
         the action/pass against the game rules).
         """
         self.board = self.board.move(color, action)
+        self.counter[self.board] += 1
 
     def maxⁿ_search(self, board: Board,
                     player: Color,
@@ -171,6 +179,9 @@ class MaxⁿPlayer:
         best_action = None
         for mv in board.possible_actions(player):
             n_board = board.move(player, mv)
+            if self.counter[n_board] + 1 >= MAX_STATE_REPETITION:
+                # Actively avoid repetitive states
+                continue
             if depth >= CUT_OFF_DEPTH:
                 score = self.Score.get(n_board)
             else:

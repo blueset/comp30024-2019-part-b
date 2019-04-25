@@ -1,6 +1,6 @@
-from scipy.spatial.distance import cityblock
-
 from .board import Board, DESTINATIONS
+from .typing import Coordinate
+from .utilities import manhattan_distance
 
 
 class Player:
@@ -21,8 +21,8 @@ class Player:
                 return verb, args
             else:
                 # MOVE or JUMP
-                target = args[1]
-                dist = min(cityblock(target, d) for d in dests)
+                target: Coordinate = args[1]
+                dist = min(manhattan_distance(target, d) for d in dests)
                 if dist < best_dist:
                     best_dist = dist
                     best_action = (verb, args)

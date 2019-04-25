@@ -3,18 +3,17 @@ from typing import Set, Dict, Optional, List, Iterator, Tuple
 
 from .typing import Coordinate, Color, Action
 
-BOARD: List[Coordinate] = \
-    [(-3, 0), (-3, 1), (-3, 2), (-3, 3),
-     (-2, -1), (-2, 0), (-2, 1), (-2, 2), (-2, 3),
-     (-1, -2), (-1, -1), (-1, 0), (-1, 1), (-1, 2), (-1, 3),
-     (0, -3), (0, -2), (0, -1), (0, 0), (0, 1), (0, 2), (0, 3),
-     (1, -3), (1, -2), (1, -1), (1, 0), (1, 1), (1, 2),
-     (2, -3), (2, -2), (2, -1), (2, 0), (2, 1),
-     (3, -3), (3, -2), (3, -1), (3, 0)]
+BOARD = [(-3, 0), (-3, 1), (-3, 2), (-3, 3),
+         (-2, -1), (-2, 0), (-2, 1), (-2, 2), (-2, 3),
+         (-1, -2), (-1, -1), (-1, 0), (-1, 1), (-1, 2), (-1, 3),
+         (0, -3), (0, -2), (0, -1), (0, 0), (0, 1), (0, 2), (0, 3),
+         (1, -3), (1, -2), (1, -1), (1, 0), (1, 1), (1, 2),
+         (2, -3), (2, -2), (2, -1), (2, 0), (2, 1),
+         (3, -3), (3, -2), (3, -1), (3, 0)]
 """All legal hex coordinates as a list."""
 
-BOARD_SET: Set[Coordinate] = set(BOARD)
-"""All legal hex coordinates as a set."""
+BOARD_DICT: Dict[Coordinate, int] = {i: idx for idx, i in enumerate(BOARD)}
+"""All legal hex coordinates as a coordinate-index mapping."""
 
 DESTINATIONS: Dict[Color, Set[Coordinate]] = {
     "red": {(3, -3), (3, -2), (3, -1), (3, 0)},
@@ -38,7 +37,7 @@ class Board:
 
     def __init__(self,
                  by_player: Optional[Dict[Color, Set[Coordinate]]] = None,
-                 by_hex: Optional[Dict[Coordinate, Optional[Color]]] = None,
+                 by_hex: Optional[Tuple[Optional[Color]]] = None,
                  exited_pieces: Optional[ExitedPieces] = None):
         """
         Create a status object.
@@ -64,22 +63,21 @@ class Board:
             }
 
             # Index by hex
-            self.__by_hex: Dict[Coordinate, Optional[Color]] = \
-                {i: None for i in BOARD}
+            by_hex: List[Optional[Color]] = [None] * len(BOARD)
             for c, xs in self.__by_player.items():
                 for x in xs:
-                    self.__by_hex[x] = c
+                    by_hex[BOARD_DICT[x]] = c
+            self.__by_hex = tuple(by_hex)
 
             self.__exited_pieces = self.ExitedPieces(red=0, green=0, blue=0)
 
         # Tuple representation of the object for hashing
         # noinspection PyTypeChecker
-        self.__tuple = \
-            tuple(self.__by_hex[i] for i in BOARD) + self.__exited_pieces
+        self.__tuple = self.__by_hex + self.__exited_pieces
 
     def get_player(self, coord: Coordinate) -> Optional[Color]:
         """Get the player on a hex (if possible)"""
-        return self.__by_hex[coord]
+        return self.__by_hex[BOARD_DICT[coord]]
 
     def get_pieces(self, player: Color) -> Set[Coordinate]:
         """Get the set of location of pieces of a player."""
@@ -92,12 +90,12 @@ class Board:
         :param action: The action
         """
         by_player = {k: v.copy() for k, v in self.__by_player.items()}
-        by_hex = self.__by_hex.copy()
+        by_hex = list(self.__by_hex)
 
         verb, args = action
         if verb == "EXIT":
             by_player[color].remove(args)
-            by_hex[args] = None
+            by_hex[BOARD_DICT[args]] = None
             r, g, b = self.__exited_pieces
             if color == "red":
                 r += 1
@@ -105,23 +103,23 @@ class Board:
                 g += 1
             elif color == "blue":
                 b += 1
-            return Board(by_player=by_player, by_hex=by_hex,
+            return Board(by_player=by_player, by_hex=tuple(by_hex),
                          exited_pieces=self.ExitedPieces(r, g, b))
         elif verb in ("JUMP", "MOVE"):
             orig, dest = args
             by_player[color].remove(orig)
             by_player[color].add(dest)
-            by_hex[orig] = None
-            by_hex[dest] = color
+            by_hex[BOARD_DICT[orig]] = None
+            by_hex[BOARD_DICT[dest]] = color
             # Consider conversion of pieces
             if verb == "JUMP":
                 mid = ((orig[0] + dest[0]) // 2, (orig[1] + dest[1]) // 2)
-                ic = by_hex[mid]
+                ic = by_hex[BOARD_DICT[mid]]
                 if ic is not None and ic != color:
                     by_player[ic].remove(mid)
                     by_player[color].add(mid)
-                    by_hex[mid] = color
-            return Board(by_player=by_player, by_hex=by_hex,
+                    by_hex[BOARD_DICT[mid]] = color
+            return Board(by_player=by_player, by_hex=tuple(by_hex),
                          exited_pieces=self.__exited_pieces)
         else:
             return self
@@ -134,37 +132,36 @@ class Board:
         """
         pieces = self.__by_player[player]
 
-        has_action = False
+        exits = []
 
         # Check exit actions
         for p in pieces:
             if p in DESTINATIONS[player]:
-                has_action = True
-                yield ("EXIT", p)
+                exits.append(("EXIT", p))
 
-        # Check jump actions
+        # Check move/jump actions
+        moves = []
+        jumps = []
+
         for p in pieces:
             for d in DIRECTIONS:
                 move = (p[0] + d[0], p[1] + d[1])
                 jump = (p[0] + 2 * d[0], p[1] + 2 * d[1])
-                if move in BOARD_SET and \
-                        self.__by_hex[move] is not None and \
-                        jump in BOARD_SET and \
-                        self.__by_hex[jump] is None:
-                    has_action = True
-                    yield ("JUMP", (p, jump))
+                if move in BOARD_DICT:
+                    if self.__by_hex[BOARD_DICT[move]] is None:
+                        moves.append(("MOVE", (p, move)))
+                    elif jump in BOARD_DICT and self.__by_hex[BOARD_DICT[jump]] is None:
+                        jumps.append(("JUMP", (p, jump)))
 
-        # Check move actions
-        for p in pieces:
-            for d in DIRECTIONS:
-                move = (p[0] + d[0], p[1] + d[1])
-                if move in BOARD_SET and self.__by_hex[move] is None:
-                    has_action = True
-                    yield ("MOVE", (p, move))
-
-        # Yield pass if no action is available.
-        if not has_action:
+        if not exits and not moves and not jumps:
             yield ("PASS", None)
+        else:
+            for i in exits:
+                yield i
+            for i in moves:
+                yield i
+            for i in jumps:
+                yield i
 
     def get_exited_pieces(self, player: Color) -> int:
         """Get the number of pieces exited by the player."""
