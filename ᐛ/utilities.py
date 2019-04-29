@@ -28,3 +28,13 @@ def exit_distance(coord: Coordinate, color: Color) -> int:
     elif color == 'blue':
         return 3 + q + r
     return -1
+
+
+def cw120(p: Coordinate) -> Coordinate:
+    """Rotate the piece 120° clockwise"""
+    return - p[0] - p[1], p[0]
+
+
+def ccw120(p: Coordinate) -> Coordinate:
+    """Rotate the piece 120° counter-clockwise"""
+    return p[1], - p[0] - p[1]

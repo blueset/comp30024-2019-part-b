@@ -1,9 +1,11 @@
-from typing import Tuple, Dict, Optional
+import pickle
+from pathlib import Path
+from typing import Tuple, Dict, Optional, FrozenSet, Set
 from collections import Counter
 
-from .typing import Action, Color
+from .typing import Action, Color, Coordinate
 from .board import Board, DESTINATIONS, DIRECTIONS, BOARD_DICT
-from .utilities import exit_distance
+from .utilities import exit_distance, cw120, ccw120
 
 CUT_OFF_DEPTH = 3
 """Cut of depth for maxⁿ search."""
@@ -21,6 +23,15 @@ NEXT_PLAYER = {
 MAX_STATE_REPETITION = 2
 """Maximum number of repetitions of a board configuration."""
 
+BEST_DISTANCE: Dict[FrozenSet[Coordinate], int] = pickle.load(
+    open(Path(__file__).parent / "min_steps.pkl", "rb"))
+"""
+Precomputed best number of steps of 0-4 pieces to exit the board
+assuming no enemy presents.
+"""
+
+MAX_BEST_DISTANCE = 19
+"""Maximum value of best distance."""
 
 class MaxⁿPlayer:
     """
@@ -55,6 +66,20 @@ class MaxⁿPlayer:
             self._green: Optional[float] = None
             self._blue: Optional[float] = None
 
+        @staticmethod
+        def get_best_distance(pieces: FrozenSet, player: Color) -> int:
+            """
+            Get the minimum number of steps for the set of pieces to
+            exit the board ignoring comtestants.
+            """
+            # convert blue and green coordinates to red coordinates
+            if player == "blue":
+                pieces = frozenset(cw120(i) for i in pieces)
+            elif player == "green":
+                pieces = frozenset(ccw120(i) for i in pieces)
+    
+            return BEST_DISTANCE.get(pieces, MAX_BEST_DISTANCE)
+
         def evaluation_function(self, player: Color) -> float:
 
             if self.board.get_exited_pieces(player) >= EXIT_PIECES_TO_WIN:
@@ -68,12 +93,15 @@ class MaxⁿPlayer:
                 # No action is possible due to lack of pieces
                 return 0
 
-            # Sum of min (manhattan) distance to destinations
-            dist = 14 * EXIT_PIECES_TO_WIN - sum(
-                sorted(
-                    exit_distance(p, player) for p in pieces
-                )[:n_pieces_needed]
-            )
+            # Take the nearest pieces to the destination
+            nearest_pieces = sorted(
+                (exit_distance(p, player), p) for p in pieces
+            )[:n_pieces_needed]
+            nearest_pieces = frozenset(i[1] for i in nearest_pieces)
+
+            # Sum of min steps to destinations
+            dist = MAX_BEST_DISTANCE * EXIT_PIECES_TO_WIN - \
+                self.get_best_distance(nearest_pieces, player)
 
             # Number of jump actions possible
             jumps = sum(1
@@ -181,7 +209,7 @@ class MaxⁿPlayer:
         # Use evaluation function
         best_score = float('-inf')
         best_score_set = None
-        best_action = None
+        best_action = ("PASS", None)
         for mv in board.possible_actions(player):
             n_board = board.move(player, mv)
             if self.counter[n_board] + 1 >= MAX_STATE_REPETITION:
