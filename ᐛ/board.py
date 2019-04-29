@@ -103,7 +103,7 @@ class Board:
                 g += 1
             elif color == "blue":
                 b += 1
-            return Board(by_player=by_player, by_hex=tuple(by_hex),
+            return self.__class__(by_player=by_player, by_hex=tuple(by_hex),
                          exited_pieces=self.ExitedPieces(r, g, b))
         elif verb in ("JUMP", "MOVE"):
             orig, dest = args
@@ -119,7 +119,7 @@ class Board:
                     by_player[ic].remove(mid)
                     by_player[color].add(mid)
                     by_hex[BOARD_DICT[mid]] = color
-            return Board(by_player=by_player, by_hex=tuple(by_hex),
+            return self.__class__(by_player=by_player, by_hex=tuple(by_hex),
                          exited_pieces=self.__exited_pieces)
         else:
             return self

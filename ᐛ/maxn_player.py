@@ -3,7 +3,7 @@ from collections import Counter
 
 from .typing import Action, Color
 from .board import Board, DESTINATIONS, DIRECTIONS, BOARD_DICT
-from .utilities import manhattan_distance
+from .utilities import exit_distance
 
 CUT_OFF_DEPTH = 3
 """Cut of depth for maxⁿ search."""
@@ -71,8 +71,7 @@ class MaxⁿPlayer:
             # Sum of min (manhattan) distance to destinations
             dist = 14 * EXIT_PIECES_TO_WIN - sum(
                 sorted(
-                    min([manhattan_distance(p, d) for d in DESTINATIONS[player]])
-                    for p in pieces
+                    exit_distance(p, player) for p in pieces
                 )[:n_pieces_needed]
             )
 
