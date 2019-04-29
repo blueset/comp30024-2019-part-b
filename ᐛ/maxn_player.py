@@ -27,7 +27,7 @@ class MaxⁿPlayer:
     Implementation of maxⁿ algorithm as a player.
     """
 
-    __version__ = "3"
+    __version__ = "4"
 
     class Score:
         """Recording the score on a certain node, with lazy evaluation."""
