@@ -38,7 +38,8 @@ class Player:
     def __init__(self, color):
         self.color = color
         self.board = MCTSState()
-        self.mcts = mcts(timeLimit=1000)
+        self.mcts = mcts(timeLimit=10000)
+        # self.mcts = mcts(iterationLimit=4)
 
     def action(self):
         return self.mcts.search(initialState=self.board)[0]
