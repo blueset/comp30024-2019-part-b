@@ -94,27 +94,53 @@ class MaxⁿPlayer:
                 return 0
 
             # Take the nearest pieces to the destination
-            nearest_pieces = sorted(
-                (exit_distance(p, player), p) for p in pieces
-            )[:n_pieces_needed]
-            nearest_pieces = frozenset(i[1] for i in nearest_pieces)
+            if len(pieces) > n_pieces_needed:
+                nearest_pieces = sorted(
+                    (exit_distance(p, player), p) for p in pieces
+                )[:n_pieces_needed]
+                nearest_pieces = frozenset(i[1] for i in nearest_pieces)
+            else:
+                nearest_pieces = frozenset(pieces)
+
+            # if player == 'red':
+            #     print("near: {}".format(nearest_pieces))
 
             # Sum of min steps to destinations
-            dist = MAX_BEST_DISTANCE * EXIT_PIECES_TO_WIN - \
+            dist = MAX_BEST_DISTANCE - \
                 self.get_best_distance(nearest_pieces, player)
+            
+            # if player == 'red':
+            #     print("dist: {}".format(dist))
 
             # Number of jump actions possible
-            jumps = sum(1
-                        for i in self.board.possible_actions(player)
-                        if i[0] == "JUMP")
+            # TODO must classify jumps as jumping over friend pieces, otherwise, staying in that state may get eaten.
+            # jumps = sum(1
+            #             for i in self.board.possible_actions(player)
+            #             if i[0] == "JUMP")
+
+            jumps = 0
+            coherence = 0
+            for p in pieces:
+                for d in DIRECTIONS:
+                    mv = (p[0] + d[0], p[1] + d[1])
+                    jmp = (p[0] + d[0] + d[0], p[1] + d[1] + d[1])
+
+                    if mv in BOARD_DICT and jmp in BOARD_DICT and \
+                            self.board.get_player(mv) is not None and \
+                            self.board.get_player(jmp) is None:
+                            # exit_distance(p, player) >= exit_distance(jmp, player):
+                        jumps += 1
 
             # Number of actions that other players can take to convert
             # my pieces
+
             conv = 0
-            for p in pieces:
+            for p in nearest_pieces:
                 for d in DIRECTIONS:
                     pos = (p[0] + d[0], p[1] + d[1])
                     neg = (p[0] - d[0], p[1] - d[1])
+                    if pos in nearest_pieces:
+                        coherence += 1
                     if pos in BOARD_DICT and neg in BOARD_DICT and \
                             self.board.get_player(pos) != player and \
                             self.board.get_player(neg) is None:
@@ -123,11 +149,16 @@ class MaxⁿPlayer:
             # Factor: Favor the case when
             # (number of pieces need to exit to win) is equal to or more than
             # (number of available pieces).
-            factor = len(pieces) / n_pieces_needed
+            # factor = max(n_pieces_needed / len(pieces)
+            n_pieces_short = min(n_pieces_needed - len(pieces), 0)
+            # n_pieces_spare = max(n_pieces_needed - len(pieces) + 1, 0) # negation of previous one
 
             # TODO: Train this weights (currently arbitrary)
             # TODO: Make the attributes zero-sum to apply shallow pruning
-            return factor * (4 * dist + jumps - conv)
+            # if player == "red":
+            #     print("nearest_pieces: {}".format(nearest_pieces))
+            # NOTE take the minimum distance of nearest_pieces.
+            return 10 * (dist - MAX_BEST_DISTANCE * n_pieces_short) - (n_pieces_short) * conv + 1 * coherence / 2 + 30 * jumps
 
         @property
         def red(self) -> float:
@@ -204,7 +235,7 @@ class MaxⁿPlayer:
     def maxⁿ_search(self, board: Board,
                     player: Color,
                     depth: int,
-                    prev_best: float = float('-inf')) -> Tuple[Action, Score]:
+                    prev_best: float = float('-inf')) -> Tuple[Action, 'MaxⁿPlayer.Score']:
         """Search for the best move recursively using maxⁿ algorithm."""
         # Use evaluation function
         best_score = float('-inf')
@@ -216,7 +247,7 @@ class MaxⁿPlayer:
                 # Actively avoid repetitive states
                 continue
             if depth >= CUT_OFF_DEPTH:
-                score = self.Score.get(n_board)
+                score = self.Score(n_board)
             else:
                 next_player = NEXT_PLAYER[player]
                 _, score = self.maxⁿ_search(n_board, next_player, depth + 1, best_score)
