@@ -329,7 +329,7 @@ class BoardViewCanvas(tkinter.Canvas):
                 if self.button.is_exit:
                     self.deactivate(("EXIT", self.active_piece))
                 else:
-                    self.deactivate(("SKIP", None))
+                    self.deactivate(("PASS", None))
                 return
         print('clicked nothing.')
 
@@ -363,12 +363,6 @@ class PassButton:
             self.canvas.itemconfig(self.labelid, text="Exit")
         else:
             self.canvas.itemconfig(self.labelid, text="Pass")
-
-    def click(self):
-        if self.is_exit:
-            "Do exit code"
-        else:
-            self.canvas.deactivate(("PASS", None))
 
 
 class Board:

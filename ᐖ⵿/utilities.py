@@ -8,10 +8,13 @@ def axial_distance(a: Coordinate, b: Coordinate) -> int:
     Code adapted from Axial Coordinates by Red Blob Games
     <https://www.redblobgames.com/grids/hexagons/>.
     """
+    aq, ar = a
+    bq, br = b
 
     return (abs(aq - bq)
             + abs(aq + ar - bq - br)
             + abs(ar - br)) // 2
+
 
 def exit_distance(coord: Coordinate, color: Color) -> int:
     """
