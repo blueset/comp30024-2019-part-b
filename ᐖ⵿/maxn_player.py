@@ -38,7 +38,7 @@ class MaxⁿPlayer:
     Implementation of maxⁿ algorithm as a player.
     """
 
-    __version__ = "4"
+    __version__ = "5"
 
     class Score:
         """Recording the score on a certain node, with lazy evaluation."""
@@ -87,39 +87,32 @@ class MaxⁿPlayer:
                 return float('inf')
 
             pieces = self.board.get_pieces(player)
-            n_pieces_needed = EXIT_PIECES_TO_WIN - self.board.get_exited_pieces(player)
+            n_pieces_to_exit = EXIT_PIECES_TO_WIN - self.board.get_exited_pieces(player)
 
             if len(pieces) == 0:
                 # No action is possible due to lack of pieces
                 return 0
 
-            # Take the nearest pieces to the destination
-            if len(pieces) > n_pieces_needed:
+            # Take the nearest needed pieces to the destination
+            if len(pieces) > n_pieces_to_exit:
                 nearest_pieces = sorted(
                     (exit_distance(p, player), p) for p in pieces
-                )[:n_pieces_needed]
+                )[:n_pieces_to_exit]
                 nearest_pieces = frozenset(i[1] for i in nearest_pieces)
             else:
                 nearest_pieces = frozenset(pieces)
 
-            # if player == 'red':
-            #     print("near: {}".format(nearest_pieces))
-
-            # Sum of min steps to destinations
+            # Minimum steps for "nearest-pieces" to exit board
+            # assuming no other pieces are on the board.
             dist = MAX_BEST_DISTANCE - \
                 self.get_best_distance(nearest_pieces, player)
-            
-            # if player == 'red':
-            #     print("dist: {}".format(dist))
+
+            # TODO: must classify jumps as jumping over friend pieces, 
+            # otherwise, staying in that state may get eaten.
+            # QUESTION: what does that mean?
 
             # Number of jump actions possible
-            # TODO must classify jumps as jumping over friend pieces, otherwise, staying in that state may get eaten.
-            # jumps = sum(1
-            #             for i in self.board.possible_actions(player)
-            #             if i[0] == "JUMP")
-
             jumps = 0
-            coherence = 0
             for p in pieces:
                 for d in DIRECTIONS:
                     mv = (p[0] + d[0], p[1] + d[1])
@@ -128,13 +121,15 @@ class MaxⁿPlayer:
                     if mv in BOARD_DICT and jmp in BOARD_DICT and \
                             self.board.get_player(mv) is not None and \
                             self.board.get_player(jmp) is None:
-                            # exit_distance(p, player) >= exit_distance(jmp, player):
                         jumps += 1
 
-            # Number of actions that other players can take to convert
-            # my pieces
-
+            # Number of pieces of other players can can convert
+            # our "nearest-pieces"
             conv = 0
+
+            # 2 x Number of pieces that are next to each other
+            coherence = 0
+
             for p in nearest_pieces:
                 for d in DIRECTIONS:
                     pos = (p[0] + d[0], p[1] + d[1])
@@ -146,19 +141,23 @@ class MaxⁿPlayer:
                             self.board.get_player(neg) is None:
                         conv += 1
 
-            # Factor: Favor the case when
-            # (number of pieces need to exit to win) is equal to or more than
-            # (number of available pieces).
-            # factor = max(n_pieces_needed / len(pieces)
-            n_pieces_short = min(n_pieces_needed - len(pieces), 0)
-            # n_pieces_spare = max(n_pieces_needed - len(pieces) + 1, 0) # negation of previous one
+            # Number of pieces that we are missing but needed to win the game
+            n_pieces_missing = min(n_pieces_to_exit - len(pieces), 0)
 
             # TODO: Train this weights (currently arbitrary)
             # TODO: Make the attributes zero-sum to apply shallow pruning
-            # if player == "red":
-            #     print("nearest_pieces: {}".format(nearest_pieces))
-            # NOTE take the minimum distance of nearest_pieces.
-            return 10 * (dist - MAX_BEST_DISTANCE * n_pieces_short) - (n_pieces_short) * conv + 1 * coherence / 2 + 30 * jumps
+            vector = [dist, n_pieces_to_exit, n_pieces_missing, conv,
+                      jumps, coherence, conv * n_pieces_missing]
+            weights = [
+                10,  # dist
+                0,   # n_pieces_to_exit
+                -10 * MAX_BEST_DISTANCE,  # n_pieces_missing
+                0,   # conv
+                30,  # jumps
+                0.5, # coherence
+                -1,  # conv * n_pieces_missing
+            ]
+            return sum(i * j for i, j in zip(vector, weights))
 
         @property
         def red(self) -> float:
