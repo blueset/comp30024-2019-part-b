@@ -62,11 +62,11 @@ def rpc_server():
 
     @svr.register_function
     def destroy():
-        print("Killing the server as the game is ended.")
-        root.destroy()
-        svr.server_close()
-        svr.shutdown()
-        exit(1)
+        # print("Killing the server as the game is ended.")
+        # root.destroy()
+        # svr.server_close()
+        # svr.shutdown()
+        # exit(1)
         return 0
 
     print(f"Running RPC server for player {color} on port {port}")
