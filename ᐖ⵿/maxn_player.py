@@ -1,4 +1,6 @@
 import pickle
+import atexit
+from math import tanh
 from pathlib import Path
 from typing import Tuple, Dict, Optional, FrozenSet, Set
 from collections import Counter
@@ -6,6 +8,12 @@ from collections import Counter
 from .typing import Action, Color, Coordinate
 from .board import Board, DESTINATIONS, DIRECTIONS, BOARD_DICT
 from .utilities import exit_distance, cw120, ccw120
+
+TD_LEAF_LAMBDA_TRAIN_MODE = False
+"""Flag to toggle TDLeaf(λ) train mode."""
+
+DELTA = 1e-4
+"""Delta for calculating partial derivative"""
 
 CUT_OFF_DEPTH = 3
 """Cut of depth for maxⁿ search."""
@@ -50,6 +58,16 @@ class MaxⁿPlayer:
         """Maximum total evaluation score of 3 players."""
         # TODO: Fill this with actual value
 
+        WEIGHTS = [
+            10,  # dist
+            0,   # n_pieces_to_exit
+            -10 * MAX_BEST_DISTANCE,  # n_pieces_missing
+            0,   # conv
+            30,  # jumps
+            0.5,  # coherence
+            -1,  # conv * n_pieces_missing
+        ]
+
         @classmethod
         def get(cls, board: Board):
             """
@@ -63,8 +81,11 @@ class MaxⁿPlayer:
         def __init__(self, board: Board):
             self.board: Board = board
             self._red: Optional[float] = None
+            self._red_vector: Optional[List[Float]] = None
             self._green: Optional[float] = None
+            self._green_vector: Optional[List[Float]] = None
             self._blue: Optional[float] = None
+            self._blue_vector: Optional[List[Float]] = None
 
         @staticmethod
         def get_best_distance(pieces: FrozenSet, player: Color) -> int:
@@ -80,7 +101,7 @@ class MaxⁿPlayer:
     
             return BEST_DISTANCE.get(pieces, MAX_BEST_DISTANCE)
 
-        def evaluation_function(self, player: Color) -> float:
+        def evaluation_function(self, player: Color) -> Tuple[float, List[float]]:
 
             if self.board.get_exited_pieces(player) >= EXIT_PIECES_TO_WIN:
                 # Player wins the game
@@ -148,36 +169,28 @@ class MaxⁿPlayer:
             # TODO: Make the attributes zero-sum to apply shallow pruning
             vector = [dist, n_pieces_to_exit, n_pieces_missing, conv,
                       jumps, coherence, conv * n_pieces_missing]
-            weights = [
-                10,  # dist
-                0,   # n_pieces_to_exit
-                -10 * MAX_BEST_DISTANCE,  # n_pieces_missing
-                0,   # conv
-                30,  # jumps
-                0.5, # coherence
-                -1,  # conv * n_pieces_missing
-            ]
-            return sum(i * j for i, j in zip(vector, weights))
+            
+            return sum(i * j for i, j in zip(vector, self.WEIGHTS)), vector
 
         @property
         def red(self) -> float:
             """Evaluation score of player red on this board"""
             if self._red is None:
-                self._red = self.evaluation_function("red")
+                self._red, self._red_vector = self.evaluation_function("red")
             return self._red
 
         @property
         def green(self) -> float:
             """Evaluation score of player green on this board"""
             if self._green is None:
-                self._green = self.evaluation_function("green")
+                self._green, self._green_vector = self.evaluation_function("green")
             return self._green
 
         @property
         def blue(self) -> float:
             """Evaluation score of player blue on this board"""
             if self._blue is None:
-                self._blue = self.evaluation_function("blue")
+                self._blue, self._blue_vector = self.evaluation_function("blue")
             return self._blue
 
     def __init__(self, color: Color):
@@ -191,10 +204,14 @@ class MaxⁿPlayer:
         program will play as (Red, Green or Blue). The value will be one of the
         strings "red", "green", or "blue" correspondingly.
         """
-        self.color = color
+        self.color: Color = color
         self.board = Board()
         self.counter = Counter()
         self.counter[self.board] = 1
+
+        if TD_LEAF_LAMBDA_TRAIN_MODE:
+            self.score_history: List['MaxⁿPlayer.Score'] = []
+            atexit.register(self.td_leaf)
 
     def action(self) -> Action:
         """
@@ -207,7 +224,9 @@ class MaxⁿPlayer:
         must be represented based on the above instructions for representing
         actions.
         """
-        action, _ = self.maxⁿ_search(self.board, player=self.color, depth=0)
+        action, score = self.maxⁿ_search(self.board, player=self.color, depth=0)
+        if TD_LEAF_LAMBDA_TRAIN_MODE:
+            self.score_history.append(score)
         return action
 
     def update(self, color: Color, action: Action) -> None:
@@ -266,3 +285,59 @@ class MaxⁿPlayer:
                 # wins on this move
                 break
         return best_action, best_score_set
+
+    def td_leaf(self, λ=0.8, η=1.0):
+        """
+        Update weight with TDLeaf(λ) using equation:
+
+          / l  \         /     / l  \ \ 
+        r| s , w| = tanh| eval| s , w| |
+          \ i  /         \     \ i  / /
+
+               / l    \      / l  \ 
+        d  = r| s   , w| - r| s , w|
+         i     \ i+1  /      \ i  /
+
+                          /     l      _                _ \ 
+                          | ∂r(s , w) |                  | |
+                      N-1 |     i     |  N-1    m-i      | |
+        w  <- w  + η   ∑  | --------- |   ∑    λ     d   | |
+         j     j      i=1 |    ∂w     |  m=1          m  | |
+                          |      j    |_                _| |
+                           \                              /
+        """
+        # eval(s_i^l, w)
+        eval_s_w = [getattr(i, self.color) for i in self.score_history]
+
+        r = [tanh(i) for i in eval_s_w]
+
+        d = [r[i + 1] - r[i]
+                for i in range(len(self.score_history) - 1)]
+
+        # Size of d, i.e. N-1
+        N_1 = len(d)
+
+        new_weights = []
+        
+        for j in range(len(self.Score.WEIGHTS)):
+            old_weight = self.Score.WEIGHTS[j]
+            ∑i = 0
+            for i in range(len(differences)):
+                ∑m = sum(λ ** (m-i) * d[m] for m in range(N_1))
+                features: List[float] = \
+                    getattr(self.score_history[i], f"_{self.color}_vector")
+
+                # TODO: confirm if ∂r/∂w_j is really this.
+                ∂r∂wj = (
+                    (features[j] * (old_weight + DELTA)) -
+                    (featuers[j] * old_weight)
+                ) / DELTA
+                ∑i += ∂r∂wj * ∑m
+            new_weights.append(old_weight + η * ∑i)
+        
+        print("NEW_WEIGHTS")
+        print(new_weights)
+
+        # TODO: make weights persistent and rewritable between sessions
+
+
