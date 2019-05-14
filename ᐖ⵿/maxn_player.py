@@ -11,7 +11,7 @@ from .typing import Action, Color, Coordinate
 from .board import Board, DIRECTIONS, BOARD_DICT, EXIT_PIECES_TO_WIN
 from .utilities import exit_distance, cw120, ccw120
 
-DELTA = 1e-8
+DELTA = 1e-3
 """Delta for calculating partial derivative"""
 
 CUT_OFF_DEPTH = 3
@@ -42,6 +42,11 @@ assuming no enemy presents.
 
 MAX_BEST_DISTANCE = 19
 """Maximum value of best distance."""
+
+
+class Const:
+    TRAIN_ON_PLAYER = None
+    """Which player to train when 3 are all maxn"""
 
 
 class MaxⁿPlayer:
@@ -265,7 +270,11 @@ class MaxⁿPlayer:
         self.counter[self.board] += 1
 
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
-            if self.board.winner:
+            if not self.board.get_pieces(self.color):
+                Const.TRAIN_ON_PLAYER = self.color
+            if self.board.winner != self.color:
+                Const.TRAIN_ON_PLAYER = self.color
+            if self.board.winner and Const.TRAIN_ON_PLAYER == self.color:
                 self.score_history.append(self.Score(self.board))
                 self.td_leaf()
 
@@ -308,7 +317,7 @@ class MaxⁿPlayer:
             print(f"Failed:\nmaxⁿ_search({board}, {player}, {depth}, {prev_best})")
         return best_action, best_score_set
 
-    def td_leaf(self, λ=0.8, η=1.0):
+    def td_leaf(self, λ=0.8, η=1e-2):
         r"""
         Update weight with TDLeaf(λ) using equation:
 
@@ -361,6 +370,7 @@ class MaxⁿPlayer:
                 Σi += δrδwj * Σm
             new_weights.append(old_weight + η * Σi)
 
+        print("PLAYER     ", self.color)
         print("OLD_WEIGHTS", self.Score.WEIGHTS)
         print("NEW_WEIGHTS", new_weights)
 
