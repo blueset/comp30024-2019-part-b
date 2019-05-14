@@ -2,27 +2,20 @@
 # -*- coding: utf-8 -*-
 
 import pickle
-import atexit
 from math import tanh
 from pathlib import Path
-from typing import Tuple, Dict, Optional, FrozenSet, Set, List
+from typing import Tuple, Dict, Optional, FrozenSet, List
 from collections import Counter
 
 from .typing import Action, Color, Coordinate
-from .board import Board, DESTINATIONS, DIRECTIONS, BOARD_DICT
+from .board import Board, DIRECTIONS, BOARD_DICT, EXIT_PIECES_TO_WIN
 from .utilities import exit_distance, cw120, ccw120
 
-TD_LEAF_LAMBDA_TRAIN_MODE = False
-"""Flag to toggle TDLeaf(λ) train mode."""
-
-DELTA = 1e-4
+DELTA = 1e-8
 """Delta for calculating partial derivative"""
 
 CUT_OFF_DEPTH = 3
 """Cut of depth for maxⁿ search."""
-
-EXIT_PIECES_TO_WIN = 4
-"""Number of pieces to 'exit' to win a game."""
 
 NEXT_PLAYER = {
     "red": "green",
@@ -50,12 +43,16 @@ assuming no enemy presents.
 MAX_BEST_DISTANCE = 19
 """Maximum value of best distance."""
 
+
 class MaxⁿPlayer:
     """
     Implementation of maxⁿ algorithm as a player.
     """
 
     __version__ = "5"
+
+    TD_LEAF_LAMBDA_TRAIN_MODE = False
+    """Flag to toggle TDLeaf(λ) train mode."""
 
     class Score:
         """Recording the score on a certain node, with lazy evaluation."""
@@ -77,7 +74,8 @@ class MaxⁿPlayer:
             3. conv
             4. jumps
             5. coherence
-            6. conv * n_pieces_missing
+            6. n_pieces_exited
+            7. conv * n_pieces_missing
         """
 
         @classmethod
@@ -93,11 +91,11 @@ class MaxⁿPlayer:
         def __init__(self, board: Board):
             self.board: Board = board
             self._red: Optional[float] = None
-            self._red_vector: Optional[List[Float]] = None
+            self._red_vector: Optional[List[float]] = None
             self._green: Optional[float] = None
-            self._green_vector: Optional[List[Float]] = None
+            self._green_vector: Optional[List[float]] = None
             self._blue: Optional[float] = None
-            self._blue_vector: Optional[List[Float]] = None
+            self._blue_vector: Optional[List[float]] = None
 
         @staticmethod
         def get_best_distance(pieces: FrozenSet, player: Color) -> int:
@@ -110,35 +108,37 @@ class MaxⁿPlayer:
                 pieces = frozenset(cw120(i) for i in pieces)
             elif player == "green":
                 pieces = frozenset(ccw120(i) for i in pieces)
-    
+
             return BEST_DISTANCE.get(pieces, MAX_BEST_DISTANCE)
 
         def evaluation_function(self, player: Color) -> Tuple[float, List[float]]:
 
             if self.board.get_exited_pieces(player) >= EXIT_PIECES_TO_WIN:
                 # Player wins the game
-                return float('inf')
+                return float('inf'), []
 
             pieces = self.board.get_pieces(player)
-            n_pieces_to_exit = EXIT_PIECES_TO_WIN - self.board.get_exited_pieces(player)
+            n_piece_exited = self.board.get_exited_pieces(player)
+            n_pieces_to_exit = EXIT_PIECES_TO_WIN - n_piece_exited
 
             if len(pieces) == 0:
                 # No action is possible due to lack of pieces
-                return 0
+                # Player loses the game at this stage
+                return float('-inf'), []
 
             # Take the nearest needed pieces to the destination
             if len(pieces) > n_pieces_to_exit:
-                nearest_pieces = sorted(
+                np = sorted(
                     (exit_distance(p, player), p) for p in pieces
                 )[:n_pieces_to_exit]
-                nearest_pieces = frozenset(i[1] for i in nearest_pieces)
+                nearest_pieces = frozenset(i[1] for i in np)
             else:
                 nearest_pieces = frozenset(pieces)
 
             # Minimum steps for "nearest-pieces" to exit board
             # assuming no other pieces are on the board.
             dist = MAX_BEST_DISTANCE - \
-                self.get_best_distance(nearest_pieces, player)
+                   self.get_best_distance(nearest_pieces, player)
 
             # TODO: must classify jumps as jumping over friend pieces, 
             # otherwise, staying in that state may get eaten.
@@ -180,8 +180,8 @@ class MaxⁿPlayer:
             # TODO: Train this weights (currently arbitrary)
             # TODO: Make the attributes zero-sum to apply shallow pruning
             vector = [dist, n_pieces_to_exit, n_pieces_missing, conv,
-                      jumps, coherence, conv * n_pieces_missing]
-            
+                      jumps, coherence, n_piece_exited, conv * n_pieces_missing]
+
             return sum(i * j for i, j in zip(vector, self.WEIGHTS)), vector
 
         @property
@@ -218,12 +218,14 @@ class MaxⁿPlayer:
         """
         self.color: Color = color
         self.board = Board()
-        self.counter = Counter()
+        self.counter: Counter = Counter()
         self.counter[self.board] = 1
 
-        if TD_LEAF_LAMBDA_TRAIN_MODE:
+        if color == "blue":
+            self.TD_LEAF_LAMBDA_TRAIN_MODE = True
+
+        if self.TD_LEAF_LAMBDA_TRAIN_MODE:
             self.score_history: List['MaxⁿPlayer.Score'] = []
-            atexit.register(self.td_leaf)
 
     def action(self) -> Action:
         """
@@ -237,7 +239,7 @@ class MaxⁿPlayer:
         actions.
         """
         action, score = self.maxⁿ_search(self.board, player=self.color, depth=0)
-        if TD_LEAF_LAMBDA_TRAIN_MODE:
+        if self.TD_LEAF_LAMBDA_TRAIN_MODE:
             self.score_history.append(score)
         return action
 
@@ -262,6 +264,11 @@ class MaxⁿPlayer:
         self.board = self.board.move(color, action)
         self.counter[self.board] += 1
 
+        if self.TD_LEAF_LAMBDA_TRAIN_MODE:
+            if self.board.winner:
+                self.score_history.append(self.Score(self.board))
+                self.td_leaf()
+
     def maxⁿ_search(self, board: Board,
                     player: Color,
                     depth: int,
@@ -269,7 +276,7 @@ class MaxⁿPlayer:
         """Search for the best move recursively using maxⁿ algorithm."""
         # Use evaluation function
         best_score = float('-inf')
-        best_score_set = None
+        best_score_set = self.Score(board)
         best_action = ("PASS", None)
         for mv in board.possible_actions(player):
             n_board = board.move(player, mv)
@@ -281,7 +288,7 @@ class MaxⁿPlayer:
             else:
                 next_player = NEXT_PLAYER[player]
                 _, score = self.maxⁿ_search(n_board, next_player, depth + 1, best_score)
-            if getattr(score, player) > best_score:
+            if score and getattr(score, player) > best_score:
                 best_score = getattr(score, player)
                 best_score_set = score
                 best_action = mv
@@ -296,10 +303,13 @@ class MaxⁿPlayer:
                 # maximum possible value is found -- the player
                 # wins on this move
                 break
+        # DEBUG
+        if depth == 0 and best_action[0] == "PASS" and best_action != next(board.possible_actions(player)):
+            print(f"Failed:\nmaxⁿ_search({board}, {player}, {depth}, {prev_best})")
         return best_action, best_score_set
 
     def td_leaf(self, λ=0.8, η=1.0):
-        """
+        r"""
         Update weight with TDLeaf(λ) using equation:
 
           / l  \         /     / l  \ \ 
@@ -324,29 +334,33 @@ class MaxⁿPlayer:
         r = [tanh(i) for i in eval_s_w]
 
         d = [r[i + 1] - r[i]
-                for i in range(len(self.score_history) - 1)]
+             for i in range(len(self.score_history) - 1)]
 
         # Size of d, i.e. N-1
         N_1 = len(d)
 
         new_weights = []
-        
+
         for j in range(len(self.Score.WEIGHTS)):
             old_weight = self.Score.WEIGHTS[j]
             Σi = 0
-            for i in range(len(differences)):
-                Σm = sum(λ ** (m-i) * d[m] for m in range(N_1))
+            for i in range(N_1):
+                Σm = sum(λ ** (m - i) * d[m] for m in range(N_1))
                 features: List[float] = \
                     getattr(self.score_history[i], f"_{self.color}_vector")
 
+                if not features:
+                    # Skip steps when the player is confirmed to win/lose
+                    continue
+
                 # TODO: confirm if ∂r/∂w_j is really this.
                 δrδwj = (
-                    (features[j] * (old_weight + DELTA)) -
-                    (featuers[j] * old_weight)
-                ) / DELTA
+                            (features[j] * (old_weight + DELTA)) -
+                            (features[j] * old_weight)
+                        ) / DELTA
                 Σi += δrδwj * Σm
             new_weights.append(old_weight + η * Σi)
-        
+
         print("OLD_WEIGHTS", self.Score.WEIGHTS)
         print("NEW_WEIGHTS", new_weights)
 

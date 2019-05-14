@@ -20,10 +20,13 @@ DESTINATIONS: Dict[Color, Set[Coordinate]] = {
     "green": {(-3, 3), (-2, 3), (-1, 3), (0, 3)},
     "blue": {(-3, 0), (-2, -1), (-1, -2), (0, -3)}
 }
-"""All destinations of each player"""
+"""All destinations of each player."""
 
 DIRECTIONS: Set[Coordinate] = {(0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1)}
-"""All possible directions to move"""
+"""All possible directions to move."""
+
+EXIT_PIECES_TO_WIN = 4
+"""Number of pieces to 'exit' to win a game."""
 
 
 class Board:
@@ -104,7 +107,7 @@ class Board:
             elif color == "blue":
                 b += 1
             return self.__class__(by_player=by_player, by_hex=tuple(by_hex),
-                         exited_pieces=self.ExitedPieces(r, g, b))
+                                  exited_pieces=self.ExitedPieces(r, g, b))
         elif verb in ("JUMP", "MOVE"):
             orig, dest = args
             by_player[color].remove(orig)
@@ -120,7 +123,7 @@ class Board:
                     by_player[color].add(mid)
                     by_hex[BOARD_DICT[mid]] = color
             return self.__class__(by_player=by_player, by_hex=tuple(by_hex),
-                         exited_pieces=self.__exited_pieces)
+                                  exited_pieces=self.__exited_pieces)
         else:
             return self
 
@@ -167,6 +170,17 @@ class Board:
         """Get the number of pieces exited by the player."""
         return getattr(self.__exited_pieces, player)
 
+    @property
+    def winner(self) -> Optional[Color]:
+        if self.__exited_pieces.red >= EXIT_PIECES_TO_WIN:
+            return "red"
+        if self.__exited_pieces.green >= EXIT_PIECES_TO_WIN:
+            return "green"
+        if self.__exited_pieces.blue >= EXIT_PIECES_TO_WIN:
+            return "blue"
+
+        return None
+
     def __eq__(self, other):
         if isinstance(other, Board):
             return self.__tuple == other.__tuple
@@ -174,3 +188,6 @@ class Board:
 
     def __hash__(self):
         return hash(self.__tuple)
+
+    def __str__(self):
+        return f"Board({self.__by_player}, {self.__by_hex}, Board.{self.__exited_pieces})"
