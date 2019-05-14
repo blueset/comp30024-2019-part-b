@@ -1,8 +1,11 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+
 import pickle
 import atexit
 from math import tanh
 from pathlib import Path
-from typing import Tuple, Dict, Optional, FrozenSet, Set
+from typing import Tuple, Dict, Optional, FrozenSet, Set, List
 from collections import Counter
 
 from .typing import Action, Color, Coordinate
@@ -31,8 +34,14 @@ NEXT_PLAYER = {
 MAX_STATE_REPETITION = 2
 """Maximum number of repetitions of a board configuration."""
 
+THIS_PATH = Path(__file__).parent
+"""Path to the folder containing this file"""
+
+WEIGHTS_PATH = THIS_PATH / "weights.pkl"
+"""Path for the persistent trained weight for the evaluation function."""
+
 BEST_DISTANCE: Dict[FrozenSet[Coordinate], int] = pickle.load(
-    open(Path(__file__).parent / "min_steps.pkl", "rb"))
+    (THIS_PATH / "min_steps.pkl").open("rb"))
 """
 Precomputed best number of steps of 0-4 pieces to exit the board
 assuming no enemy presents.
@@ -58,15 +67,18 @@ class MaxⁿPlayer:
         """Maximum total evaluation score of 3 players."""
         # TODO: Fill this with actual value
 
-        WEIGHTS = [
-            10,  # dist
-            0,   # n_pieces_to_exit
-            -10 * MAX_BEST_DISTANCE,  # n_pieces_missing
-            0,   # conv
-            30,  # jumps
-            0.5,  # coherence
-            -1,  # conv * n_pieces_missing
-        ]
+        WEIGHTS = pickle.load(WEIGHTS_PATH.open("rb"))
+        """
+        Weights for the evaluation function vector, which is from left to 
+        right,
+            0. dist
+            1. n_pieces_to_exit
+            2. n_pieces_missing
+            3. conv
+            4. jumps
+            5. coherence
+            6. conv * n_pieces_missing
+        """
 
         @classmethod
         def get(cls, board: Board):
@@ -321,23 +333,23 @@ class MaxⁿPlayer:
         
         for j in range(len(self.Score.WEIGHTS)):
             old_weight = self.Score.WEIGHTS[j]
-            ∑i = 0
+            Σi = 0
             for i in range(len(differences)):
-                ∑m = sum(λ ** (m-i) * d[m] for m in range(N_1))
+                Σm = sum(λ ** (m-i) * d[m] for m in range(N_1))
                 features: List[float] = \
                     getattr(self.score_history[i], f"_{self.color}_vector")
 
                 # TODO: confirm if ∂r/∂w_j is really this.
-                ∂r∂wj = (
+                δrδwj = (
                     (features[j] * (old_weight + DELTA)) -
                     (featuers[j] * old_weight)
                 ) / DELTA
-                ∑i += ∂r∂wj * ∑m
-            new_weights.append(old_weight + η * ∑i)
+                Σi += δrδwj * Σm
+            new_weights.append(old_weight + η * Σi)
         
-        print("NEW_WEIGHTS")
-        print(new_weights)
+        print("OLD_WEIGHTS", self.Score.WEIGHTS)
+        print("NEW_WEIGHTS", new_weights)
 
-        # TODO: make weights persistent and rewritable between sessions
-
-
+        # Make weights persistent and rewritable between sessions
+        with WEIGHTS_PATH.open("wb") as f:
+            pickle.dump(new_weights, f)
