@@ -172,6 +172,7 @@ class Board:
 
     @property
     def winner(self) -> Optional[Color]:
+        """Winner of the current board, if available"""
         if self.__exited_pieces.red >= EXIT_PIECES_TO_WIN:
             return "red"
         if self.__exited_pieces.green >= EXIT_PIECES_TO_WIN:

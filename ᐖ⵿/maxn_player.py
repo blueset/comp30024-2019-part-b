@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pickle
+import sys
 from math import tanh
 from pathlib import Path
 from typing import Tuple, Dict, Optional, FrozenSet, List
@@ -9,12 +10,12 @@ from collections import Counter
 
 from .typing import Action, Color, Coordinate
 from .board import Board, DIRECTIONS, BOARD_DICT, EXIT_PIECES_TO_WIN
-from .utilities import exit_distance, cw120, ccw120
+from .utilities import exit_distance, cw120, ccw120, dot, Const
 
-DELTA = 1e-3
+DELTA = 1e-6
 """Delta for calculating partial derivative"""
 
-CUT_OFF_DEPTH = 3
+CUT_OFF_DEPTH = 2
 """Cut of depth for maxⁿ search."""
 
 NEXT_PLAYER = {
@@ -44,11 +45,6 @@ MAX_BEST_DISTANCE = 19
 """Maximum value of best distance."""
 
 
-class Const:
-    TRAIN_ON_PLAYER = None
-    """Which player to train when 3 are all maxn"""
-
-
 class MaxⁿPlayer:
     """
     Implementation of maxⁿ algorithm as a player.
@@ -56,7 +52,7 @@ class MaxⁿPlayer:
 
     __version__ = "5"
 
-    TD_LEAF_LAMBDA_TRAIN_MODE = False
+    TD_LEAF_LAMBDA_TRAIN_MODE = True
     """Flag to toggle TDLeaf(λ) train mode."""
 
     class Score:
@@ -106,7 +102,7 @@ class MaxⁿPlayer:
         def get_best_distance(pieces: FrozenSet, player: Color) -> int:
             """
             Get the minimum number of steps for the set of pieces to
-            exit the board ignoring comtestants.
+            exit the board ignoring opponents.
             """
             # convert blue and green coordinates to red coordinates
             if player == "blue":
@@ -115,6 +111,13 @@ class MaxⁿPlayer:
                 pieces = frozenset(ccw120(i) for i in pieces)
 
             return BEST_DISTANCE.get(pieces, MAX_BEST_DISTANCE)
+
+        def mark_as_lose(self, player: Color):
+            """
+            Mark this score as "Lose" on a certain player.
+            """
+            setattr(self, f"_{player}", float('-inf'))
+            setattr(self, f"_{player}_vector", [])
 
         def evaluation_function(self, player: Color) -> Tuple[float, List[float]]:
 
@@ -187,7 +190,7 @@ class MaxⁿPlayer:
             vector = [dist, n_pieces_to_exit, n_pieces_missing, conv,
                       jumps, coherence, n_piece_exited, conv * n_pieces_missing]
 
-            return sum(i * j for i, j in zip(vector, self.WEIGHTS)), vector
+            return dot(vector, self.WEIGHTS), vector
 
         @property
         def red(self) -> float:
@@ -225,9 +228,6 @@ class MaxⁿPlayer:
         self.board = Board()
         self.counter: Counter = Counter()
         self.counter[self.board] = 1
-
-        if color == "blue":
-            self.TD_LEAF_LAMBDA_TRAIN_MODE = True
 
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
             self.score_history: List['MaxⁿPlayer.Score'] = []
@@ -271,10 +271,11 @@ class MaxⁿPlayer:
 
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
             if not self.board.get_pieces(self.color):
-                Const.TRAIN_ON_PLAYER = self.color
-            if self.board.winner != self.color:
-                Const.TRAIN_ON_PLAYER = self.color
-            if self.board.winner and Const.TRAIN_ON_PLAYER == self.color:
+                # Const.TRAIN_ON_PLAYER = self.color
+                self.td_leaf()
+            # if self.board.winner != self.color:
+                # Const.TRAIN_ON_PLAYER = self.color
+            if self.board.winner:
                 self.score_history.append(self.Score(self.board))
                 self.td_leaf()
 
@@ -287,10 +288,14 @@ class MaxⁿPlayer:
         best_score = float('-inf')
         best_score_set = self.Score(board)
         best_action = ("PASS", None)
+        
+        aym_dancin = 0
+
         for mv in board.possible_actions(player):
             n_board = board.move(player, mv)
             if self.counter[n_board] + 1 >= MAX_STATE_REPETITION:
-                # Actively avoid repetitive states
+                # Aggressively avoid repetitive states
+                aym_dancin += 1
                 continue
             if depth >= CUT_OFF_DEPTH:
                 score = self.Score(n_board)
@@ -312,14 +317,22 @@ class MaxⁿPlayer:
                 # maximum possible value is found -- the player
                 # wins on this move
                 break
-        # DEBUG
+        # This may happen due to the aggressive prevention of repeated states.
+        # In this case, the game will try to end itself, mark this play as lost
+        # And train the weights with TDLeaf.
+        if aym_dancin and aym_dancin == len(list(board.possible_actions(player))):
+            print("AYM DANCIN'!!!!!!!!", player, depth, prev_best)
         if depth == 0 and best_action[0] == "PASS" and best_action != next(board.possible_actions(player)):
-            print(f"Failed:\nmaxⁿ_search({board}, {player}, {depth}, {prev_best})")
+            print(f"Failed:\nmaxⁿ_search({board}, {repr(player)}, {depth}, {prev_best})")
+            # Const.TRAIN_ON_PLAYER = self.color
+            best_score_set.mark_as_lose(self.color)
+            self.score_history.append(best_score_set)
+            self.td_leaf()
         return best_action, best_score_set
 
-    def td_leaf(self, λ=0.8, η=1e-2):
+    def td_leaf(self, λ=0.7, η=1e-2):
         r"""
-        Update weight with TDLeaf(λ) using equation:
+        Update weight with TDLeaf(λ) using equations:
 
           / l  \         /     / l  \ \ 
         r| s , w| = tanh| eval| s , w| |
@@ -351,7 +364,7 @@ class MaxⁿPlayer:
         new_weights = []
 
         for j in range(len(self.Score.WEIGHTS)):
-            old_weight = self.Score.WEIGHTS[j]
+            old_weights = self.Score.WEIGHTS
             Σi = 0
             for i in range(N_1):
                 Σm = sum(λ ** (m - i) * d[m] for m in range(N_1))
@@ -363,12 +376,16 @@ class MaxⁿPlayer:
                     continue
 
                 # TODO: confirm if ∂r/∂w_j is really this.
-                δrδwj = (
-                            (features[j] * (old_weight + DELTA)) -
-                            (features[j] * old_weight)
-                        ) / DELTA
+                old_weights_d = old_weights.copy()
+                old_weights_d[j] += DELTA
+                δrδwj = (dot(features, old_weights_d) -
+                         dot(features, old_weights)) / DELTA
                 Σi += δrδwj * Σm
-            new_weights.append(old_weight + η * Σi)
+            new_weights.append(old_weights[j] + η * Σi)
+        
+        if self.Score.WEIGHTS == new_weights:
+            print("PLAYER", self.color, "did not contribute anything")
+            return
 
         print("PLAYER     ", self.color)
         print("OLD_WEIGHTS", self.Score.WEIGHTS)
@@ -377,3 +394,5 @@ class MaxⁿPlayer:
         # Make weights persistent and rewritable between sessions
         with WEIGHTS_PATH.open("wb") as f:
             pickle.dump(new_weights, f)
+        
+        # sys.exit(0)

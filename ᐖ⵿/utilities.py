@@ -1,5 +1,10 @@
 from .typing import Coordinate, Color
+from typing import Iterable
 
+
+class Const:
+    TRAIN_ON_PLAYER = None
+    """Which player to train when 3 are all maxn"""
 
 def axial_distance(a: Coordinate, b: Coordinate) -> int:
     """
@@ -41,3 +46,8 @@ def cw120(p: Coordinate) -> Coordinate:
 def ccw120(p: Coordinate) -> Coordinate:
     """Rotate the piece 120° counter-clockwise"""
     return p[1], - p[0] - p[1]
+
+
+def dot(a: Iterable[float], b: Iterable[float]) -> float:
+    """Dot product of 2 vectors without verification."""
+    return sum(i * j for i, j in zip(a, b))
