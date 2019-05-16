@@ -3,6 +3,7 @@
 
 import pickle
 import sys
+import os
 from math import tanh
 from pathlib import Path
 from typing import Tuple, Dict, Optional, FrozenSet, List
@@ -14,9 +15,6 @@ from .utilities import exit_distance, cw120, ccw120, dot, Const
 
 DELTA = 1e-6
 """Delta for calculating partial derivative"""
-
-CUT_OFF_DEPTH = 2
-"""Cut of depth for maxⁿ search."""
 
 NEXT_PLAYER = {
     "red": "green",
@@ -55,15 +53,18 @@ class MaxⁿPlayer:
     TD_LEAF_LAMBDA_TRAIN_MODE = True
     """Flag to toggle TDLeaf(λ) train mode."""
 
+    CUT_OFF_DEPTH = 3
+    """Cut of depth for maxⁿ search."""
+
     class Score:
         """Recording the score on a certain node, with lazy evaluation."""
 
         _memory: Dict[Board, 'MaxⁿPlayer.Score'] = dict()
         """Known board configurations and scores"""
 
-        MAX_TOTAL_SCORE = float('inf')
-        """Maximum total evaluation score of 3 players."""
-        # TODO: Fill this with actual value
+        MAX_PARAMS = [MAX_BEST_DISTANCE, 4, 4, 9,
+                      10, 51, 4, 4 * 9]
+        """Maximum value for each feature of a player."""
 
         WEIGHTS = pickle.load(WEIGHTS_PATH.open("rb"))
         """
@@ -78,6 +79,9 @@ class MaxⁿPlayer:
             6. n_pieces_exited
             7. conv * n_pieces_missing
         """
+
+        MAX_TOTAL_SCORE = 3 * dot(WEIGHTS, MAX_PARAMS)
+        """Maximum total evaluation score of 3 players."""
 
         @classmethod
         def get(cls, board: Board):
@@ -229,6 +233,8 @@ class MaxⁿPlayer:
         self.counter: Counter = Counter()
         self.counter[self.board] = 1
 
+        self.CUT_OFF_DEPTH = int(os.environ.get(f"cut_off_depth_{color}", self.CUT_OFF_DEPTH))
+
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
             self.score_history: List['MaxⁿPlayer.Score'] = []
 
@@ -271,10 +277,10 @@ class MaxⁿPlayer:
 
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
             if not self.board.get_pieces(self.color):
-                # Const.TRAIN_ON_PLAYER = self.color
+                Const.TRAIN_ON_PLAYER = self.color
                 self.td_leaf()
-            # if self.board.winner != self.color:
-                # Const.TRAIN_ON_PLAYER = self.color
+            if self.board.winner != self.color:
+                Const.TRAIN_ON_PLAYER = self.color
             if self.board.winner:
                 self.score_history.append(self.Score(self.board))
                 self.td_leaf()
@@ -297,7 +303,7 @@ class MaxⁿPlayer:
                 # Aggressively avoid repetitive states
                 aym_dancin += 1
                 continue
-            if depth >= CUT_OFF_DEPTH:
+            if depth >= self.CUT_OFF_DEPTH:
                 score = self.Score(n_board)
             else:
                 next_player = NEXT_PLAYER[player]
@@ -306,12 +312,11 @@ class MaxⁿPlayer:
                 best_score = getattr(score, player)
                 best_score_set = score
                 best_action = mv
-            # TODO: Uncomment this when MAX_TOTAL_SCORE is decided
-            # if self.Score.MAX_TOTAL_SCORE - getattr(score, player) < prev_best:
-            #     # Shallow pruning: Stop searching when this branch
-            #     # yields a smaller value than what is seen in a
-            #     # previous branch.
-            #     break
+            if self.Score.MAX_TOTAL_SCORE - getattr(score, player) < prev_best:
+                # Shallow pruning: Stop searching when this branch
+                # yields a smaller value than what is seen in a
+                # previous branch.
+                break
             if best_score == float('inf'):
                 # Immediate pruning: Stop searching when the
                 # maximum possible value is found -- the player
@@ -320,10 +325,10 @@ class MaxⁿPlayer:
         # This may happen due to the aggressive prevention of repeated states.
         # In this case, the game will try to end itself, mark this play as lost
         # And train the weights with TDLeaf.
-        if aym_dancin and aym_dancin == len(list(board.possible_actions(player))):
-            print("AYM DANCIN'!!!!!!!!", player, depth, prev_best)
+        if board.get_pieces(player) and aym_dancin and aym_dancin == len(list(board.possible_actions(player))):
+            print("PLAYER", plyaer, "AYM DANCIN'!!!!!!!!, depth", depth,  "prev_best", prev_best)
         if depth == 0 and best_action[0] == "PASS" and best_action != next(board.possible_actions(player)):
-            print(f"Failed:\nmaxⁿ_search({board}, {repr(player)}, {depth}, {prev_best})")
+            print("PLAYER", f"Failed:\nmaxⁿ_search({board}, {repr(player)}, {depth}, {prev_best})")
             # Const.TRAIN_ON_PLAYER = self.color
             best_score_set.mark_as_lose(self.color)
             self.score_history.append(best_score_set)
@@ -375,7 +380,6 @@ class MaxⁿPlayer:
                     # Skip steps when the player is confirmed to win/lose
                     continue
 
-                # TODO: confirm if ∂r/∂w_j is really this.
                 old_weights_d = old_weights.copy()
                 old_weights_d[j] += DELTA
                 δrδwj = (dot(features, old_weights_d) -
@@ -384,8 +388,13 @@ class MaxⁿPlayer:
             new_weights.append(old_weights[j] + η * Σi)
         
         if self.Score.WEIGHTS == new_weights:
-            print("PLAYER", self.color, "did not contribute anything")
+            print("TRAIN PLAYER", self.color, "did not contribute anything. **converged**")
             return
+
+        for i, j in zip(self.Score.WEIGHTS, new_weights):
+            if abs(i-j)> 100:
+                print("TRAIN PLAYER", self.color, "is rocketing high...")
+                return
 
         print("PLAYER     ", self.color)
         print("OLD_WEIGHTS", self.Score.WEIGHTS)
