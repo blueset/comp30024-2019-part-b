@@ -125,9 +125,14 @@ class MaxⁿPlayer:
 
         def evaluation_function(self, player: Color) -> Tuple[float, List[float]]:
 
-            if self.board.get_exited_pieces(player) >= EXIT_PIECES_TO_WIN:
-                # Player wins the game
-                return float('inf'), []
+            for i in NEXT_PLAYER:
+                if self.board.get_exited_pieces(i) >= EXIT_PIECES_TO_WIN:
+                    if i == player:
+                        # Player wins the game
+                        return float('inf'), []
+                    else:
+                        # Player lost the game
+                        return float('-inf'), []
 
             pieces = self.board.get_pieces(player)
             n_piece_exited = self.board.get_exited_pieces(player)
@@ -236,6 +241,7 @@ class MaxⁿPlayer:
         self.CUT_OFF_DEPTH = int(os.environ.get(f"cut_off_depth_{color}", self.CUT_OFF_DEPTH))
 
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
+            self.steps_in_game = 0
             self.score_history: List['MaxⁿPlayer.Score'] = []
 
     def action(self) -> Action:
@@ -276,14 +282,23 @@ class MaxⁿPlayer:
         self.counter[self.board] += 1
 
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
+            self.steps_in_game += 1
             if not self.board.get_pieces(self.color):
                 Const.TRAIN_ON_PLAYER = self.color
                 self.td_leaf()
+                return
             if self.board.winner != self.color:
-                Const.TRAIN_ON_PLAYER = self.color
+                Const.TRAIN_ON_PLAYER = self.color                
             if self.board.winner:
                 self.score_history.append(self.Score(self.board))
                 self.td_leaf()
+                return
+            if self.steps_in_game > 750:
+                score = self.Score(self.board)
+                score.mark_as_lose()
+                self.score_history.append(score)
+                self.td_leaf()
+                return
 
     def maxⁿ_search(self, board: Board,
                     player: Color,
@@ -326,7 +341,7 @@ class MaxⁿPlayer:
         # In this case, the game will try to end itself, mark this play as lost
         # And train the weights with TDLeaf.
         if board.get_pieces(player) and aym_dancin and aym_dancin == len(list(board.possible_actions(player))):
-            print("PLAYER", plyaer, "AYM DANCIN'!!!!!!!!, depth", depth,  "prev_best", prev_best)
+            print("PLAYER", player, "AYM DANCIN'!!!!!!!!, depth", depth,  "prev_best", prev_best)
         if depth == 0 and best_action[0] == "PASS" and best_action != next(board.possible_actions(player)):
             print("PLAYER", f"Failed:\nmaxⁿ_search({board}, {repr(player)}, {depth}, {prev_best})")
             # Const.TRAIN_ON_PLAYER = self.color
@@ -404,4 +419,4 @@ class MaxⁿPlayer:
         with WEIGHTS_PATH.open("wb") as f:
             pickle.dump(new_weights, f)
         
-        # sys.exit(0)
+        self.TD_LEAF_LAMBDA_TRAIN_MODE = False

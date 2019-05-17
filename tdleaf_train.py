@@ -29,7 +29,7 @@ PLAYERS = {
     "random":  "ᐖ⵿/random_player.py",
     "mcts": "ᐖ⵿/mcts_library.py"
 }
-iter = 0
+iter = 10
 
 while True:
     log("==============================")
@@ -39,9 +39,9 @@ while True:
         log(f"Starting weights: {wght}")
     players = ["maxn", "maxn", "maxn"]
     maxn_depth = {
-        "cut_off_depth_red": '3',
-        "cut_off_depth_green": '3', 
-        "cut_off_depth_blue": '3', 
+        "cut_off_depth_red": '2',
+        "cut_off_depth_green": '2', 
+        "cut_off_depth_blue": '2', 
     }
     log(f"Agents: {players}")
     log(f"MaxN config: {maxn_depth}")
@@ -58,9 +58,10 @@ while True:
                               universal_newlines=True,
                               env=env) as p:
             for line in p.stdout:
-                if not weight and line.startswith("NEW_WEIGHT"):
+                if line.startswith("NEW_WEIGHT"):
                     weight = eval(line.split(maxsplit=1)[1])
                 elif line.startswith("TRAIN PLAYER") or line.startswith("draw detected"):
+                    log(failed_reason)
                     failed_reason = line
                     
         if weight:
@@ -68,8 +69,7 @@ while True:
                 pickle.dump(weight, f)
             log(f"Round {round}: {weight}")
         else:
-            log(f'Round {round}: Stopped.')
-            log(failed_reason)
+            log(f'Round {round}: Stopped. ({failed_reason})')
             failed_count += 1
 
         if failed_count >= 3:
@@ -79,7 +79,7 @@ while True:
                 log(f"Final weight: {wght}")
                 weights_log("==============================")
                 weights_log(f"Iteration {iter}: {datetime.now().strftime('%c')}")
-                weights_log(f"Weights: {whgt}")
+                weights_log(f"Weights: {wght}")
                 weights_log(f"Ended due to: {failed_reason}")
             break
         round += 1
