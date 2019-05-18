@@ -2,10 +2,6 @@ from .typing import Coordinate, Color
 from typing import Iterable
 
 
-class Const:
-    TRAIN_ON_PLAYER = None
-    """Which player to train when 3 are all maxn"""
-
 def axial_distance(a: Coordinate, b: Coordinate) -> int:
     """
     Calculate simple manhattan distance between 2 points

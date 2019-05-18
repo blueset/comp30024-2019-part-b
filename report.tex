@@ -105,7 +105,7 @@ consideration:
 
 \begin{description}
     \item[\texttt{dist}] Number of steps for the 
-        ``nearest candidates''\footnotemark to exit the board, assuming there 
+        ``nearest candidates''\footnotemark{} to exit the board, assuming there 
         are no other pieces on the board. A shorter \texttt{dist} value 
         is better.
     \item[\texttt{n\_pieces\_exited}]  $\in [0, 4]$. Number of pieces the 
@@ -169,6 +169,12 @@ trained with hyperparameters $\lambda = 0.7, \eta = 1.0$.
     \right)
 \end{align}
 
+Due to the nature of \TDLeaf{}, it is common to see that a weight set falls 
+in a not-so-effective local optimum. We have also created a script to 
+automate the process of training through self-playing, logging down the weight 
+changes, detect convergence and re-seeding the initial weights. This has 
+helped us to reach a better training result.
+
 \section{Effectiveness}
 % Comment on the overall effectiveness of your game-playing program. 
 % If you have created multiple game-playing
@@ -215,8 +221,8 @@ pruning (section \ref{pruning}).
 
 \subsection{\texttt{Tkinter} Player}
 In order to play the game and testing our agents within the team, we 
-implemented an GUI player using Matt Farrugia's \texttt{texgen.py}\footnotemark
-based on \texttt{Tkinter} GUI library.
+implemented an GUI player using Matt Farrugia's 
+\texttt{texgen.py}\footnotemark{} based on \texttt{Tkinter} GUI library.
 
 The \texttt{Tkinter} Player consist of 2 parts, a ``server'' that communicate
 with the Referee, and a ``client'' that communicate with the user for game
@@ -241,9 +247,11 @@ the game and some algorithms, including \texttt{Board} (section \ref{board}),
 \texttt{Max\textsuperscript{n}\_Player.Score} (section \ref{lazyeval}), etc. 
 Lazy evaluation (section \ref{lazyeval}) is also introduced for a more 
 efficient computation. Also, other techniques such Type Hinting are also
-utilized in the code (section \ref{typedef}). Last but not least, we actively
-used Unicode mathematical notations in the source code, which makes it look 
-more similar to what is shown in the report, reference papers, etc. 
+utilized in the code (section \ref{typedef}). An automated script is also
+written to speed up the training process for \TDLeaf{} (section \ref{tdleaf}).
+Last but not least, we actively used Unicode mathematical notations in the 
+source code, which makes it look more similar to what is shown in the report, 
+reference papers, etc. 
 
 
 \bibliographystyle{abbrv}
@@ -255,10 +263,10 @@ more similar to what is shown in the report, reference papers, etc.
 
 \begin{table}[ht]
     \centering
-    \begin{tabular}{l|c|c|c}
-        & \textbf{Lines added} & \textbf{Lines deleted} & \textbf{Number of commits} \\ \hline
-        Jin Han & +3996 & -382 & 26 \\ \hline
-        Mingda Dong & +44 & -13 & 1
+    \begin{tabular}{l|rrr}
+        & \textbf{Lines added} & \textbf{Lines deleted} & \textbf{Commits} \\ \hline
+        Jin Han & $+4187$ & $-447$ & 30 \\ \hline
+        Mingda Dong & $+44$ & $-13$ & 1
     \end{tabular}
     \caption{Git commit statistics}
 \end{table}
