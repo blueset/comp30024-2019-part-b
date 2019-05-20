@@ -20,33 +20,31 @@ H, W = 360, 640
 
 SERVER_LISTEN = "0.0.0.0"
 CLIENT_ACCESS = "127.0.0.1"
-PORTS = {
-    "red": 8901,
-    "green": 8902,
-    "blue": 8903
-}
+PORTS = {"red": 8901, "green": 8902, "blue": 8903}
 
 
 # Restrict to a particular path.
 class RequestHandler(SimpleXMLRPCRequestHandler):
-    rpc_paths = ('/RPC2',)
+    rpc_paths = ("/RPC2",)
 
 
 def rpc_server():
     color = sys.argv[1]
     root = tkinter.Tk()
-    root.title('Tkinter Player: ' + color)
+    root.title("Tkinter Player: " + color)
     root.wm_resizable(0, 0)
     canvas = BoardViewCanvas(root, color)
 
     root.after(500, root.focus_force())
 
     port = PORTS.get(color, 8900)
-    svr = SimpleXMLRPCServer((SERVER_LISTEN, port), requestHandler=RequestHandler, allow_none=True)
+    svr = SimpleXMLRPCServer(
+        (SERVER_LISTEN, port), requestHandler=RequestHandler, allow_none=True
+    )
     svr.register_introspection_functions()
 
-    svr.register_function(canvas.activate, 'activate')
-    svr.register_function(canvas.update_status, 'update_status')
+    svr.register_function(canvas.activate, "activate")
+    svr.register_function(canvas.update_status, "update_status")
 
     @svr.register_function
     def get_last_move():
@@ -90,12 +88,14 @@ class Player:
         """
 
         self.status = {
-            'red': {(-3, 3), (-3, 2), (-3, 1), (-3, 0)},
-            'green': {(0, -3), (1, -3), (2, -3), (3, -3)},
-            'blue': {(3, 0), (2, 1), (1, 2), (0, 3)},
+            "red": {(-3, 3), (-3, 2), (-3, 1), (-3, 0)},
+            "green": {(0, -3), (1, -3), (2, -3), (3, -3)},
+            "blue": {(3, 0), (2, 1), (1, 2), (0, 3)},
         }
 
-        self.rpc = ServerProxy(f'http://{CLIENT_ACCESS}:{PORTS.get(colour, 8900)}', allow_none=True)
+        self.rpc = ServerProxy(
+            f"http://{CLIENT_ACCESS}:{PORTS.get(colour, 8900)}", allow_none=True
+        )
 
         # begin!
         atexit.register(self.rpc.destroy)
@@ -155,7 +155,7 @@ class Player:
             self.status[color].remove(orig)
             self.status[color].add(dest)
             if verb == "JUMP":
-                mid = ((orig[0] + dest[0]) // 2, (orig[1]+dest[1]) // 2)
+                mid = ((orig[0] + dest[0]) // 2, (orig[1] + dest[1]) // 2)
                 for ic in ("red", "green", "blue"):
                     if mid in self.status[ic]:
                         self.status[ic].remove(mid)
@@ -191,16 +191,27 @@ class Color:
 
 # hex shape flat
 FH, FW = 0.866, 1
-HEX_F = [(-FW / 2, 0), (-FW / 4, -FH / 2), (FW / 4, -FH / 2),
-         (FW / 2, 0), (FW / 4, FH / 2), (-FW / 4, FH / 2)]
+HEX_F = [
+    (-FW / 2, 0),
+    (-FW / 4, -FH / 2),
+    (FW / 4, -FH / 2),
+    (FW / 2, 0),
+    (FW / 4, FH / 2),
+    (-FW / 4, FH / 2),
+]
 # hex shape pointy
 PH, PW = 1, 0.866
-HEX_P = [(-PW / 2, -PH / 4), (0, -PH / 2), (PW / 2, -PH / 4),
-         (PW / 2, PH / 4), (0, PH / 2), (-PW / 2, PH / 4)]
+HEX_P = [
+    (-PW / 2, -PH / 4),
+    (0, -PH / 2),
+    (PW / 2, -PH / 4),
+    (PW / 2, PH / 4),
+    (0, PH / 2),
+    (-PW / 2, PH / 4),
+]
 
 
 class BoardViewCanvas(tkinter.Canvas):
-
     def __init__(self, root, color):
         bg = Color.BG
         self.dests = {}
@@ -215,12 +226,10 @@ class BoardViewCanvas(tkinter.Canvas):
             self.dests = {(-3, 0), (-2, -1), (-1, -2), (0, -3)}
             bg = Color.BLUE
 
-        super().__init__(root, width=W, height=H, background=bg,
-                         highlightthickness=0)
+        super().__init__(root, width=W, height=H, background=bg, highlightthickness=0)
         self.root = root
         self.color = color
         self.status = ""
-
 
         self.in_turn = False
         self.last_move = None
@@ -243,13 +252,13 @@ class BoardViewCanvas(tkinter.Canvas):
         self.button = PassButton(self, self.board, self.root)
 
         self.label0 = self.create_text(
-            (5, 5), anchor="nw",
+            (5, 5),
+            anchor="nw",
             fill=Color.WHITE,
-            text=f"Starting game as player {self.color}")
+            text=f"Starting game as player {self.color}",
+        )
         self.label1 = self.create_text(
-            (W - 5, H - 5), anchor="se",
-            fill=Color.WHITE,
-            text="Stand-by."
+            (W - 5, H - 5), anchor="se", fill=Color.WHITE, text="Stand-by."
         )
 
     def render_board(self, status):
@@ -291,12 +300,14 @@ class BoardViewCanvas(tkinter.Canvas):
             if c_id in self.board.hexid:
                 c_hex = self.board.hexid[c_id]
                 c_coord = (c_hex.q, c_hex.r)
-                print(f'clicked hex (q={c_hex.q}, r={c_hex.r}).')
+                print(f"clicked hex (q={c_hex.q}, r={c_hex.r}).")
                 if self.active_piece is None:
                     # Activate the current piece
                     c_piece = self.board.pieces[c_coord]
                     if c_piece.col != self.color[0].upper():
-                        self.update_message(f"No. You are {self.color}, and this is {c_piece.col}.")
+                        self.update_message(
+                            f"No. You are {self.color}, and this is {c_piece.col}."
+                        )
                         return
                     c_piece.activate()
                     if c_coord in self.dests:
@@ -313,38 +324,50 @@ class BoardViewCanvas(tkinter.Canvas):
                         self.active_piece = None
                     elif c_coord in self.move_coords(self.active_piece):
                         if c_piece.col:
-                            self.update_message(f"{c_coord} is occupied by {c_piece.col}.")
+                            self.update_message(
+                                f"{c_coord} is occupied by {c_piece.col}."
+                            )
                             return
                         self.deactivate(("MOVE", (self.active_piece, c_coord)))
                     elif c_coord in self.jump_coords(self.active_piece):
                         if c_piece.col:
-                            self.update_message(f"{c_coord} is occupied by {c_piece.col}.")
+                            self.update_message(
+                                f"{c_coord} is occupied by {c_piece.col}."
+                            )
                             return
                         self.deactivate(("JUMP", (self.active_piece, c_coord)))
                     else:
-                        self.update_message(f"No. You're at {self.active_piece}. {c_coord} is too far away.")
+                        self.update_message(
+                            f"No. You're at {self.active_piece}. {c_coord} is too far away."
+                        )
                 return
             elif c_id == self.button.id:
-                print(f'clicked the {self.button.name} button!')
+                print(f"clicked the {self.button.name} button!")
                 if self.button.is_exit:
                     self.deactivate(("EXIT", self.active_piece))
                 else:
                     self.deactivate(("PASS", None))
                 return
-        print('clicked nothing.')
+        print("clicked nothing.")
 
     @staticmethod
     def move_coords(c):
-        return {(c[0] + i[0], c[1] + i[1]) for i in ((0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1))}
+        return {
+            (c[0] + i[0], c[1] + i[1])
+            for i in ((0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1))
+        }
 
     @staticmethod
     def jump_coords(c):
-        return {(c[0] + 2 * i[0], c[1] + 2 * i[1]) for i in ((0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1))}
+        return {
+            (c[0] + 2 * i[0], c[1] + 2 * i[1])
+            for i in ((0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1))
+        }
 
 
 class PassButton:
     def __init__(self, canvas, board, root):
-        self.name = 'Pass'
+        self.name = "Pass"
         self.root = root
         self.board = board
         self.is_exit = False
@@ -354,8 +377,9 @@ class PassButton:
         D = min(H, W)
         coordinates = transform(HEX_F, (0.8 * W, 0.8 * H), (0.2 * D, 0.2 * D))
         self.id = canvas.create_polygon(coordinates, fill=Color.FG)
-        self.labelid = canvas.create_text((0.8 * W, 0.8 * H), text="Pass",
-                                          fill=Color.BG, state=tkinter.DISABLED)
+        self.labelid = canvas.create_text(
+            (0.8 * W, 0.8 * H), text="Pass", fill=Color.BG, state=tkinter.DISABLED
+        )
 
     def toggle_exit(self, value):
         self.is_exit = value
@@ -394,23 +418,23 @@ class Board:
 
     def set_dests(self, color, dests):
         c = Color.NONE
-        if color == 'red':
+        if color == "red":
             c = Color.RED_S
-        elif color == 'blue':
+        elif color == "blue":
             c = Color.BLUE_S
-        elif color == 'green':
+        elif color == "green":
             c = Color.GREEN_S
         for i in dests:
             self.hexes[tuple(i)].set_color(c)
 
     def update_board(self, board):
         rev_board = {}
-        for i in board['red']:
-            rev_board[tuple(i)] = 'R'
-        for i in board['green']:
-            rev_board[tuple(i)] = 'G'
-        for i in board['blue']:
-            rev_board[tuple(i)] = 'B'
+        for i in board["red"]:
+            rev_board[tuple(i)] = "R"
+        for i in board["green"]:
+            rev_board[tuple(i)] = "G"
+        for i in board["blue"]:
+            rev_board[tuple(i)] = "B"
         for q in range(-3, 4):
             for r in range(-3, 4):
                 s = -q - r
@@ -439,8 +463,9 @@ class Hex:
         # offset into position based on coordinates
         coords = transform(coords, (r * PW / 2 * d + q * PW * d, r * 3 * PH / 4 * d))
         # create a hexagon there!
-        self.id = canvas.create_polygon(coords, tag="hex",
-                                        outline=Color.BG, fill=Color.NONE, activefill=Color.HL)
+        self.id = canvas.create_polygon(
+            coords, tag="hex", outline=Color.BG, fill=Color.NONE, activefill=Color.HL
+        )
 
         # remember my coordinates too!?
         self.coords = (W / 2 + r * PW / 2 * d + q * PW * d, H / 2 + r * 3 * PH / 4 * d)
@@ -462,15 +487,29 @@ class Piece:
 
         self.active = False
 
-        self.stone_id = canvas.create_oval(x - rad1, y - rad1, x + rad1, y + rad1,
-                                           tag="stone", outline=Color.BLACK, fill=Color.STONE,
-                                           state=tkinter.HIDDEN)
-        self.paint_id = canvas.create_oval(x - rad2, y - rad2, x + rad2, y + rad2,
-                                           tag="paint", outline=Color.NONE, fill=Color.BLACK,
-                                           state=tkinter.HIDDEN)
-        self.letter_id = canvas.create_text(x, y,
-                                            tag="letter", text="?", fill=Color.STONE,
-                                            state=tkinter.HIDDEN)
+        self.stone_id = canvas.create_oval(
+            x - rad1,
+            y - rad1,
+            x + rad1,
+            y + rad1,
+            tag="stone",
+            outline=Color.BLACK,
+            fill=Color.STONE,
+            state=tkinter.HIDDEN,
+        )
+        self.paint_id = canvas.create_oval(
+            x - rad2,
+            y - rad2,
+            x + rad2,
+            y + rad2,
+            tag="paint",
+            outline=Color.NONE,
+            fill=Color.BLACK,
+            state=tkinter.HIDDEN,
+        )
+        self.letter_id = canvas.create_text(
+            x, y, tag="letter", text="?", fill=Color.STONE, state=tkinter.HIDDEN
+        )
 
     def paint(self, col=None):
         self.col = col
@@ -481,29 +520,29 @@ class Piece:
         else:
             letter = None
             colour = None
-            if col == 'R':
+            if col == "R":
                 colour = Color.RED
-                letter = 'R'
-            elif col == 'G':
+                letter = "R"
+            elif col == "G":
                 colour = Color.GREEN
-                letter = 'G'
-            elif col == 'B':
+                letter = "G"
+            elif col == "B":
                 colour = Color.BLUE
-                letter = 'B'
-            elif col == 'BLOCK':
+                letter = "B"
+            elif col == "BLOCK":
                 colour = Color.BLACK
-                letter = ''
+                letter = ""
             self.canvas.itemconfig(self.letter_id, text=letter)
             self.canvas.itemconfig(self.paint_id, fill=colour)
             self.show()
 
     def activate(self):
         self.active = True
-        if self.col == 'R':
+        if self.col == "R":
             colour = Color.BLACK
-        elif self.col == 'G':
+        elif self.col == "G":
             colour = Color.BLACK
-        elif self.col == 'B':
+        elif self.col == "B":
             colour = Color.BLACK
         else:
             colour = None
@@ -511,27 +550,27 @@ class Piece:
 
     def deactivate(self):
         self.active = False
-        if self.col == 'R':
+        if self.col == "R":
             colour = Color.RED
-        elif self.col == 'G':
+        elif self.col == "G":
             colour = Color.GREEN
-        elif self.col == 'B':
+        elif self.col == "B":
             colour = Color.BLUE
         else:
             colour = None
         self.canvas.itemconfig(self.paint_id, fill=colour)
 
     def cycle(self):
-        if self.col == 'R':
-            self.paint('G')
-        elif self.col == 'G':
-            self.paint('B')
-        elif self.col == 'B':
-            self.paint('BLOCK')
-        elif self.col == 'BLOCK':
+        if self.col == "R":
+            self.paint("G")
+        elif self.col == "G":
+            self.paint("B")
+        elif self.col == "B":
+            self.paint("BLOCK")
+        elif self.col == "BLOCK":
             self.paint(None)
         elif self.col is None:
-            self.paint('R')
+            self.paint("R")
 
     def hide(self):
         self.canvas.itemconfig(self.letter_id, state=tkinter.HIDDEN)
@@ -544,5 +583,5 @@ class Piece:
         self.canvas.itemconfig(self.stone_id, state=tkinter.DISABLED)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     rpc_server()

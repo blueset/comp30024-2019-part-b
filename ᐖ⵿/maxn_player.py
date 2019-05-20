@@ -16,11 +16,7 @@ from .utilities import exit_distance, cw120, ccw120, dot
 DELTA = 1e-6
 """Delta for calculating partial derivative"""
 
-NEXT_PLAYER = {
-    "red": "green",
-    "green": "blue",
-    "blue": "red"
-}
+NEXT_PLAYER = {"red": "green", "green": "blue", "blue": "red"}
 """The mapping of consecutive player."""
 
 MAX_STATE_REPETITION = 2
@@ -33,7 +29,8 @@ WEIGHTS_PATH = THIS_PATH / "weights.pkl"
 """Path for the persistent trained weight for the evaluation function."""
 
 BEST_DISTANCE: Dict[FrozenSet[Coordinate], int] = pickle.load(
-    (THIS_PATH / "min_steps.pkl").open("rb"))
+    (THIS_PATH / "min_steps.pkl").open("rb")
+)
 """
 Precomputed best number of steps of 0-4 pieces to exit the board
 assuming no enemy presents.
@@ -48,7 +45,7 @@ class MaxⁿPlayer:
     Implementation of maxⁿ algorithm as a player.
     """
 
-    __version__ = "5"
+    __version__ = "6"
 
     TD_LEAF_LAMBDA_TRAIN_MODE = True
     """Flag to toggle TDLeaf(λ) train mode."""
@@ -59,11 +56,10 @@ class MaxⁿPlayer:
     class Score:
         """Recording the score on a certain node, with lazy evaluation."""
 
-        _memory: Dict[Board, 'MaxⁿPlayer.Score'] = dict()
+        _memory: Dict[Board, "MaxⁿPlayer.Score"] = dict()
         """Known board configurations and scores"""
 
-        MAX_PARAMS = [MAX_BEST_DISTANCE, 4, 4, 9,
-                      10, 51, 4, 4 * 9]
+        MAX_PARAMS = [MAX_BEST_DISTANCE, 4, 4, 9, 10, 51, 4, 4 * 9]
         """Maximum value for each feature of a player."""
 
         WEIGHTS = pickle.load(WEIGHTS_PATH.open("rb"))
@@ -120,19 +116,21 @@ class MaxⁿPlayer:
             """
             Mark this score as "Lose" on a certain player.
             """
-            setattr(self, f"_{player}", float('-inf'))
+            setattr(self, f"_{player}", float("-inf"))
             setattr(self, f"_{player}_vector", [])
 
-        def evaluation_function(self, player: Color) -> Tuple[float, List[float]]:
+        def evaluation_function(
+            self, player: Color
+        ) -> Tuple[float, List[float]]:
 
             for i in NEXT_PLAYER:
                 if self.board.get_exited_pieces(i) >= EXIT_PIECES_TO_WIN:
                     if i == player:
                         # Player wins the game
-                        return float('inf'), []
+                        return float("inf"), []
                     else:
                         # Player lost the game
-                        return float('-inf'), []
+                        return float("-inf"), []
 
             pieces = self.board.get_pieces(player)
             n_piece_exited = self.board.get_exited_pieces(player)
@@ -141,23 +139,24 @@ class MaxⁿPlayer:
             if len(pieces) == 0:
                 # No action is possible due to lack of pieces
                 # Player loses the game at this stage
-                return float('-inf'), []
+                return float("-inf"), []
 
             # Take the nearest needed pieces to the destination
             if len(pieces) > n_pieces_to_exit:
-                np = sorted(
-                    (exit_distance(p, player), p) for p in pieces
-                )[:n_pieces_to_exit]
+                np = sorted((exit_distance(p, player), p) for p in pieces)[
+                    :n_pieces_to_exit
+                ]
                 nearest_pieces = frozenset(i[1] for i in np)
             else:
                 nearest_pieces = frozenset(pieces)
 
             # Minimum steps for "nearest-pieces" to exit board
             # assuming no other pieces are on the board.
-            dist = MAX_BEST_DISTANCE - \
-                   self.get_best_distance(nearest_pieces, player)
+            dist = MAX_BEST_DISTANCE - self.get_best_distance(
+                nearest_pieces, player
+            )
 
-            # TODO: must classify jumps as jumping over friend pieces, 
+            # TODO: must classify jumps as jumping over friend pieces,
             # otherwise, staying in that state may get eaten.
             # QUESTION: what does that mean?
 
@@ -168,9 +167,12 @@ class MaxⁿPlayer:
                     mv = (p[0] + d[0], p[1] + d[1])
                     jmp = (p[0] + d[0] + d[0], p[1] + d[1] + d[1])
 
-                    if mv in BOARD_DICT and jmp in BOARD_DICT and \
-                            self.board.get_player(mv) is not None and \
-                            self.board.get_player(jmp) is None:
+                    if (
+                        mv in BOARD_DICT
+                        and jmp in BOARD_DICT
+                        and self.board.get_player(mv) is not None
+                        and self.board.get_player(jmp) is None
+                    ):
                         jumps += 1
 
             # Number of pieces of other players can can convert
@@ -186,16 +188,27 @@ class MaxⁿPlayer:
                     neg = (p[0] - d[0], p[1] - d[1])
                     if pos in nearest_pieces:
                         coherence += 1
-                    if pos in BOARD_DICT and neg in BOARD_DICT and \
-                            self.board.get_player(pos) != player and \
-                            self.board.get_player(neg) is None:
+                    if (
+                        pos in BOARD_DICT
+                        and neg in BOARD_DICT
+                        and self.board.get_player(pos) != player
+                        and self.board.get_player(neg) is None
+                    ):
                         conv += 1
 
             # Number of pieces that we are missing but needed to win the game
             n_pieces_missing = min(n_pieces_to_exit - len(pieces), 0)
 
-            vector = [dist, n_pieces_to_exit, n_pieces_missing, conv,
-                      jumps, coherence, n_piece_exited, conv * n_pieces_missing]
+            vector = [
+                dist,
+                n_pieces_to_exit,
+                n_pieces_missing,
+                conv,
+                jumps,
+                coherence,
+                n_piece_exited,
+                conv * n_pieces_missing,
+            ]
 
             return dot(vector, self.WEIGHTS), vector
 
@@ -210,14 +223,18 @@ class MaxⁿPlayer:
         def green(self) -> float:
             """Evaluation score of player green on this board"""
             if self._green is None:
-                self._green, self._green_vector = self.evaluation_function("green")
+                self._green, self._green_vector = self.evaluation_function(
+                    "green"
+                )
             return self._green
 
         @property
         def blue(self) -> float:
             """Evaluation score of player blue on this board"""
             if self._blue is None:
-                self._blue, self._blue_vector = self.evaluation_function("blue")
+                self._blue, self._blue_vector = self.evaluation_function(
+                    "blue"
+                )
             return self._blue
 
     def __init__(self, color: Color):
@@ -238,7 +255,7 @@ class MaxⁿPlayer:
 
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
             self.steps_in_game = 0
-            self.score_history: List['MaxⁿPlayer.Score'] = []
+            self.score_history: List["MaxⁿPlayer.Score"] = []
 
     def action(self) -> Action:
         """
@@ -251,7 +268,9 @@ class MaxⁿPlayer:
         must be represented based on the above instructions for representing
         actions.
         """
-        action, score = self.maxⁿ_search(self.board, player=self.color, depth=0)
+        action, score = self.maxⁿ_search(
+            self.board, player=self.color, depth=0
+        )
         if self.TD_LEAF_LAMBDA_TRAIN_MODE:
             self.score_history.append(score)
         return action
@@ -281,7 +300,7 @@ class MaxⁿPlayer:
             self.steps_in_game += 1
             if not self.board.get_pieces(self.color):
                 self.td_leaf()
-                return        
+                return
             if self.board.winner:
                 self.score_history.append(self.Score(self.board))
                 self.td_leaf()
@@ -293,16 +312,19 @@ class MaxⁿPlayer:
                 self.td_leaf()
                 return
 
-    def maxⁿ_search(self, board: Board,
-                    player: Color,
-                    depth: int,
-                    prev_best: float = float('-inf')) -> Tuple[Action, 'MaxⁿPlayer.Score']:
+    def maxⁿ_search(
+        self,
+        board: Board,
+        player: Color,
+        depth: int,
+        prev_best: float = float("-inf"),
+    ) -> Tuple[Action, "MaxⁿPlayer.Score"]:
         """Search for the best move recursively using maxⁿ algorithm."""
         # Use evaluation function
-        best_score = float('-inf')
+        best_score = float("-inf")
         best_score_set = self.Score(board)
         best_action = ("PASS", None)
-        
+
         aym_dancin = 0
 
         for mv in board.possible_actions(player):
@@ -315,7 +337,9 @@ class MaxⁿPlayer:
                 score = self.Score(n_board)
             else:
                 next_player = NEXT_PLAYER[player]
-                _, score = self.maxⁿ_search(n_board, next_player, depth + 1, best_score)
+                _, score = self.maxⁿ_search(
+                    n_board, next_player, depth + 1, best_score
+                )
             if score and getattr(score, player) > best_score:
                 best_score = getattr(score, player)
                 best_score_set = score
@@ -325,7 +349,7 @@ class MaxⁿPlayer:
                 # yields a smaller value than what is seen in a
                 # previous branch.
                 break
-            if best_score == float('inf'):
+            if best_score == float("inf"):
                 # Immediate pruning: Stop searching when the
                 # maximum possible value is found -- the player
                 # wins on this move
@@ -333,8 +357,11 @@ class MaxⁿPlayer:
         # This may happen due to the aggressive prevention of repeated states.
         # In this case, the game will try to end itself, mark this play as lost
         # And train the weights with TDLeaf.
-        if depth == 0 and best_action[0] == "PASS" and \
-            best_action != next(board.possible_actions(player)):
+        if (
+            depth == 0
+            and best_action[0] == "PASS"
+            and best_action != next(board.possible_actions(player))
+        ):
             if self.TD_LEAF_LAMBDA_TRAIN_MODE:
                 best_score_set.mark_as_lose(self.color)
                 self.score_history.append(best_score_set)
@@ -367,8 +394,7 @@ class MaxⁿPlayer:
 
         r = [tanh(i) for i in eval_s_w]
 
-        d = [r[i + 1] - r[i]
-             for i in range(len(self.score_history) - 1)]
+        d = [r[i + 1] - r[i] for i in range(len(self.score_history) - 1)]
 
         # Size of d, i.e. N-1
         N_1 = len(d)
@@ -380,8 +406,9 @@ class MaxⁿPlayer:
             Σi = 0
             for i in range(N_1):
                 Σm = sum(λ ** (m - i) * d[m] for m in range(N_1))
-                features: List[float] = \
-                    getattr(self.score_history[i], f"_{self.color}_vector")
+                features: List[float] = getattr(
+                    self.score_history[i], f"_{self.color}_vector"
+                )
 
                 if not features:
                     # Skip steps when the player is confirmed to win/lose
@@ -389,17 +416,22 @@ class MaxⁿPlayer:
 
                 old_weights_d = old_weights.copy()
                 old_weights_d[j] += DELTA
-                δrδwj = (dot(features, old_weights_d) -
-                         dot(features, old_weights)) / DELTA
+                δrδwj = (
+                    dot(features, old_weights_d) - dot(features, old_weights)
+                ) / DELTA
                 Σi += δrδwj * Σm
             new_weights.append(old_weights[j] + η * Σi)
-        
+
         if self.Score.WEIGHTS == new_weights:
-            print("TRAIN PLAYER", self.color, "did not contribute anything. **converged**")
+            print(
+                "TRAIN PLAYER",
+                self.color,
+                "did not contribute anything. **converged**",
+            )
             return
 
         for i, j in zip(self.Score.WEIGHTS, new_weights):
-            if abs(i-j)> 100:
+            if abs(i - j) > 100:
                 print("TRAIN PLAYER", self.color, "is rocketing high...")
                 return
 
@@ -410,5 +442,5 @@ class MaxⁿPlayer:
         # Make weights persistent and rewritable between sessions
         with WEIGHTS_PATH.open("wb") as f:
             pickle.dump(new_weights, f)
-        
+
         self.TD_LEAF_LAMBDA_TRAIN_MODE = False

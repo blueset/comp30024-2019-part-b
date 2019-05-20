@@ -3,6 +3,7 @@ from typing import Set, Dict, Optional, List, Iterator, Tuple
 
 from .typing import Coordinate, Color, Action
 
+# fmt: off
 BOARD = [(-3, 0), (-3, 1), (-3, 2), (-3, 3),
          (-2, -1), (-2, 0), (-2, 1), (-2, 2), (-2, 3),
          (-1, -2), (-1, -1), (-1, 0), (-1, 1), (-1, 2), (-1, 3),
@@ -11,6 +12,7 @@ BOARD = [(-3, 0), (-3, 1), (-3, 2), (-3, 3),
          (2, -3), (2, -2), (2, -1), (2, 0), (2, 1),
          (3, -3), (3, -2), (3, -1), (3, 0)]
 """All legal hex coordinates as a list."""
+# fmt: on
 
 BOARD_DICT: Dict[Coordinate, int] = {i: idx for idx, i in enumerate(BOARD)}
 """All legal hex coordinates as a coordinate-index mapping."""
@@ -18,11 +20,18 @@ BOARD_DICT: Dict[Coordinate, int] = {i: idx for idx, i in enumerate(BOARD)}
 DESTINATIONS: Dict[Color, Set[Coordinate]] = {
     "red": {(3, -3), (3, -2), (3, -1), (3, 0)},
     "green": {(-3, 3), (-2, 3), (-1, 3), (0, 3)},
-    "blue": {(-3, 0), (-2, -1), (-1, -2), (0, -3)}
+    "blue": {(-3, 0), (-2, -1), (-1, -2), (0, -3)},
 }
 """All destinations of each player."""
 
-DIRECTIONS: Set[Coordinate] = {(0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1)}
+DIRECTIONS: Set[Coordinate] = {
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+}
 """All possible directions to move."""
 
 EXIT_PIECES_TO_WIN = 4
@@ -38,10 +47,12 @@ class Board:
 
     ExitedPieces = namedtuple("ExitedPieces", ["red", "green", "blue"])
 
-    def __init__(self,
-                 by_player: Optional[Dict[Color, Set[Coordinate]]] = None,
-                 by_hex: Optional[Tuple[Optional[Color]]] = None,
-                 exited_pieces: Optional[ExitedPieces] = None):
+    def __init__(
+        self,
+        by_player: Optional[Dict[Color, Set[Coordinate]]] = None,
+        by_hex: Optional[Tuple[Optional[Color]]] = None,
+        exited_pieces: Optional[ExitedPieces] = None,
+    ):
         """
         Create a status object.
         :param by_player: Player-pieces mapping
@@ -51,18 +62,20 @@ class Board:
         """
 
         # duplicate object
-        if by_player is not None and \
-                by_hex is not None and \
-                exited_pieces is not None:
+        if (
+            by_player is not None
+            and by_hex is not None
+            and exited_pieces is not None
+        ):
             self.__by_hex = by_hex
             self.__by_player = by_player
             self.__exited_pieces = exited_pieces
         else:
             # Index by player
             self.__by_player: Dict[Color, Set[Coordinate]] = {
-                'red': {(-3, 3), (-3, 2), (-3, 1), (-3, 0)},
-                'green': {(0, -3), (1, -3), (2, -3), (3, -3)},
-                'blue': {(3, 0), (2, 1), (1, 2), (0, 3)},
+                "red": {(-3, 3), (-3, 2), (-3, 1), (-3, 0)},
+                "green": {(0, -3), (1, -3), (2, -3), (3, -3)},
+                "blue": {(3, 0), (2, 1), (1, 2), (0, 3)},
             }
 
             # Index by hex
@@ -86,7 +99,7 @@ class Board:
         """Get the set of location of pieces of a player."""
         return self.__by_player[player]
 
-    def move(self, color: Color, action: Action) -> 'Board':
+    def move(self, color: Color, action: Action) -> "Board":
         """
         Produce a new board when a new action is made
         :param color: Color of the player
@@ -106,8 +119,11 @@ class Board:
                 g += 1
             elif color == "blue":
                 b += 1
-            return self.__class__(by_player=by_player, by_hex=tuple(by_hex),
-                                  exited_pieces=self.ExitedPieces(r, g, b))
+            return self.__class__(
+                by_player=by_player,
+                by_hex=tuple(by_hex),
+                exited_pieces=self.ExitedPieces(r, g, b),
+            )
         elif verb in ("JUMP", "MOVE"):
             orig, dest = args
             by_player[color].remove(orig)
@@ -122,8 +138,11 @@ class Board:
                     by_player[ic].remove(mid)
                     by_player[color].add(mid)
                     by_hex[BOARD_DICT[mid]] = color
-            return self.__class__(by_player=by_player, by_hex=tuple(by_hex),
-                                  exited_pieces=self.__exited_pieces)
+            return self.__class__(
+                by_player=by_player,
+                by_hex=tuple(by_hex),
+                exited_pieces=self.__exited_pieces,
+            )
         else:
             return self
 
@@ -153,7 +172,10 @@ class Board:
                 if move in BOARD_DICT:
                     if self.__by_hex[BOARD_DICT[move]] is None:
                         moves.append(("MOVE", (p, move)))
-                    elif jump in BOARD_DICT and self.__by_hex[BOARD_DICT[jump]] is None:
+                    elif (
+                        jump in BOARD_DICT
+                        and self.__by_hex[BOARD_DICT[jump]] is None
+                    ):
                         jumps.append(("JUMP", (p, jump)))
 
         if not exits and not moves and not jumps:
@@ -192,3 +214,4 @@ class Board:
 
     def __str__(self):
         return f"Board({self.__by_player}, {self.__by_hex}, Board.{self.__exited_pieces})"
+

@@ -11,7 +11,7 @@ class Player:
     def action(self):
         dests = DESTINATIONS[self.color]
 
-        best_dist = float('inf')
+        best_dist = float("inf")
         best_action = None
 
         for verb, args in self.board.possible_actions(self.color):
